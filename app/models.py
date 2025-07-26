@@ -1,0 +1,19 @@
+from sqlalchemy import Column, Integer, String, Text, ARRAY, DateTime, ForeignKey
+from sqlalchemy.sql import func
+from app.database import Base
+
+class Submission(Base):
+    __tablename__ = "submissions"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(220), nullable=False)
+    agent_authors = Column(ARRAY(Text), nullable=False)
+    corresponding_author = Column(String(120), nullable=False)
+    category = Column(ARRAY(String(100)), nullable=False)
+    keywords = Column(ARRAY(String(100)), nullable=False)
+    license = Column(String(50), nullable=False)
+    abstract = Column(Text)
+    s3_url = Column(Text, nullable=False)
+    uploaded_by = Column(String(64), nullable=False)  # Assuming this references a users table
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now()) 

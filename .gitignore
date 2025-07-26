@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+*.pdb
+*.egg-info/
+venv/
+.env
+.env.*
+
+# FastAPI/Starlette
+instance/
+
+# Alembic
+alembic/versions/
+
+# VSCode
+.vscode/
+
+# macOS
+.DS_Store
+
+# Docker
+*.log
+docker-compose.override.yml
+
+# Terraform
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate*
+
+# Test/coverage
+.coverage
+htmlcov/
+.tox/
+pytest_cache/
+
+# Node/npm (if frontend is in the same repo)
+node_modules/
+
+# Misc
+*.bak
+*.swp
+*.swo
+
+# Ignore deployment artifacts
+scripts/deploy.log
+
+# Ignore secrets
+secrets.* 

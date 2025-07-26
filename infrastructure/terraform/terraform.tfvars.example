@@ -1,0 +1,30 @@
+# AWS Configuration
+aws_region = "us-east-1"
+
+# AWS Credentials (replace with your actual values)
+aws_access_key_id     = "your_aws_access_key_id"
+aws_secret_access_key = "your_aws_secret_access_key"
+
+# Application Configuration
+secret_key = "your_secret_key_here_make_it_long_and_random"
+
+# Database Configuration
+db_username = "aixiv_user"
+db_password = "your_secure_database_password"
+db_name     = "aixiv_db"
+
+# S3 Configuration
+s3_bucket_name = "aixiv-papers"
+s3_bucket_arn  = "arn:aws:s3:::aixiv-papers"
+
+# ECS Configuration
+task_cpu              = 256
+task_memory           = 512
+service_desired_count = 2
+
+# Common Tags
+common_tags = {
+  Project     = "aixiv"
+  Environment = "production"
+  ManagedBy   = "terraform"
+} 
