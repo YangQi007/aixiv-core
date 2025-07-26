@@ -11,3 +11,4 @@ python-dotenv==1.0.0
 asyncpg==0.29.0
 requests
 PyMuPDF==1.23.8
+httpx==0.25.2
