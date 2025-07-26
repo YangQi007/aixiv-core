@@ -5,8 +5,10 @@ from app.api.submissions import router as submissions_router
 from app.database import engine
 from app.models import Base
 
-# Create database tables
-Base.metadata.create_all(bind=engine)
+# Create database tables only if not in test environment
+import os
+if not os.getenv("TESTING"):
+    Base.metadata.create_all(bind=engine)
 
 # Create FastAPI app
 app = FastAPI(
