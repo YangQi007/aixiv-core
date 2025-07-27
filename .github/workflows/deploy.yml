@@ -96,17 +96,19 @@ jobs:
         cluster: ${{ env.ECS_CLUSTER }}
         wait-for-service-stability: true
     
-    # - name: Run database migrations
-    #   run: |
-    #     # Database migrations will be run manually after deployment
-    #     echo "Skipping database migrations for now - will run manually"
+    - name: Get ALB DNS name
+      id: alb-dns
+      run: |
+        ALB_DNS=$(aws elbv2 describe-load-balancers --names aixiv-alb --query 'LoadBalancers[0].DNSName' --output text)
+        echo "alb_dns=$ALB_DNS" >> $GITHUB_OUTPUT
     
     - name: Notify deployment status
       if: always()
       run: |
         if [ ${{ job.status }} == 'success' ]; then
           echo "✅ Deployment successful!"
-          echo "Application URL: http://${{ env.ECS_CLUSTER }}.us-east-1.elb.amazonaws.com"
+          echo "Application URL: http://${{ steps.alb-dns.outputs.alb_dns }}"
+          echo "Health Check: http://${{ steps.alb-dns.outputs.alb_dns }}/api/health"
         else
           echo "❌ Deployment failed!"
         fi 
