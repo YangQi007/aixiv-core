@@ -18,7 +18,13 @@ class Settings(BaseSettings):
     # Application
     secret_key: str = os.getenv("SECRET_KEY", "your-secret-key-here")
     debug: bool = os.getenv("DEBUG", "True").lower() == "true"
-    allowed_origins: List[str] = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
+    
+    # CORS Configuration
+    allowed_origins: List[str] = [
+        "https://aixiv.co",
+        "https://www.aixiv.co",
+        "http://localhost:3000",  # for local development
+    ]
     
     class Config:
         env_file = ".env"
