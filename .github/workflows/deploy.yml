@@ -75,16 +75,11 @@ jobs:
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
         echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
     
-    - name: Download task definition
-      run: |
-        aws ecs describe-task-definition --task-definition ${{ env.ECS_TASK_DEFINITION }} \
-        --query taskDefinition > task-definition.json
-    
     - name: Fill in the new image ID in the Amazon ECS task definition
       id: task-def
       uses: aws-actions/amazon-ecs-render-task-definition@v1
       with:
-        task-definition: task-definition.json
+        task-definition: infrastructure/ecs-task-definition.json
         container-name: aixiv-backend
         image: ${{ steps.build-image.outputs.image }}
     
@@ -96,18 +91,10 @@ jobs:
         cluster: ${{ env.ECS_CLUSTER }}
         wait-for-service-stability: true
     
-    - name: Run database migrations
-      run: |
-        # Get the task ARN
-        TASK_ARN=$(aws ecs list-tasks --cluster ${{ env.ECS_CLUSTER }} --service-name ${{ env.ECS_SERVICE }} --query 'taskArns[0]' --output text)
-        
-        # Run migrations using ECS exec (if configured) or via a temporary task
-        aws ecs run-task \
-          --cluster ${{ env.ECS_CLUSTER }} \
-          --task-definition ${{ env.ECS_TASK_DEFINITION }} \
-          --launch-type FARGATE \
-          --network-configuration "awsvpcConfiguration={subnets=[subnet-12345678,subnet-87654321],securityGroups=[sg-12345678],assignPublicIp=ENABLED}" \
-          --overrides '{"containerOverrides":[{"name":"aixiv-backend","command":["alembic","upgrade","head"]}]}'
+    # - name: Run database migrations
+    #   run: |
+    #     # Database migrations will be run manually after deployment
+    #     echo "Skipping database migrations for now - will run manually"
     
     - name: Notify deployment status
       if: always()

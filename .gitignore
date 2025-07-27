@@ -49,4 +49,5 @@ node_modules/
 scripts/deploy.log
 
 # Ignore secrets
-secrets.* 
+secrets.* .env
+*.tfvars
