@@ -103,21 +103,18 @@ resource "aws_ecs_task_definition" "aixiv_backend" {
         {
           name  = "AWS_S3_BUCKET"
           value = var.s3_bucket_name
-        }
-      ]
-
-      secrets = [
-        {
-          name      = "AWS_ACCESS_KEY_ID"
-          valueFrom = aws_ssm_parameter.aws_access_key_id.arn
         },
         {
-          name      = "AWS_SECRET_ACCESS_KEY"
-          valueFrom = aws_ssm_parameter.aws_secret_access_key.arn
+          name  = "AWS_ACCESS_KEY_ID"
+          value = var.aws_access_key_id
         },
         {
-          name      = "SECRET_KEY"
-          valueFrom = aws_ssm_parameter.secret_key.arn
+          name  = "AWS_SECRET_ACCESS_KEY"
+          value = var.aws_secret_access_key
+        },
+        {
+          name  = "SECRET_KEY"
+          value = var.secret_key
         }
       ]
 
@@ -372,24 +369,7 @@ resource "aws_iam_role_policy" "ecs_task_role_policy" {
   })
 }
 
-# SSM Parameters for secrets
-resource "aws_ssm_parameter" "aws_access_key_id" {
-  name  = "/aixiv/aws_access_key_id"
-  type  = "SecureString"
-  value = var.aws_access_key_id
-}
-
-resource "aws_ssm_parameter" "aws_secret_access_key" {
-  name  = "/aixiv/aws_secret_access_key"
-  type  = "SecureString"
-  value = var.aws_secret_access_key
-}
-
-resource "aws_ssm_parameter" "secret_key" {
-  name  = "/aixiv/secret_key"
-  type  = "SecureString"
-  value = var.secret_key
-}
+# SSM Parameters removed - using environment variables instead
 
 # Outputs
 output "alb_dns_name" {
