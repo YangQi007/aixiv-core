@@ -24,6 +24,9 @@ class Settings(BaseSettings):
         "https://aixiv.co",
         "https://www.aixiv.co",
         "http://localhost:3000",  # for local development
+        "http://localhost:3001",  # alternative port
+        "http://127.0.0.1:3000",  # alternative localhost
+        "http://127.0.0.1:3001",  # alternative localhost and port
     ]
     
     class Config:
