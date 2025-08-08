@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
-from app.models import Submission
+from app.models import Submission, UserProfile
 from app.schemas import SubmissionCreate
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 def create_submission(db: Session, submission: SubmissionCreate) -> Submission:
     """
@@ -63,4 +63,41 @@ def delete_submission(db: Session, submission_id: int) -> bool:
         db.delete(db_submission)
         db.commit()
         return True
-    return False 
+    return False
+
+
+def get_profile_by_user_id(db: Session, user_id: str) -> Optional[UserProfile]:
+    """
+    Get a user profile by user ID
+    """
+    return db.query(UserProfile).filter(UserProfile.user_id == user_id).first()
+
+
+def create_or_update_profile(db: Session, profile_data: Dict) -> UserProfile:
+    """
+    Create or update a user profile
+    """
+    user_id = profile_data.get('user_id')
+    existing_profile = get_profile_by_user_id(db, user_id)
+    
+    # Get valid UserProfile columns
+    valid_columns = UserProfile.__table__.columns.keys()
+    
+    # Filter profile_data to only include valid columns
+    filtered_data = {k: v for k, v in profile_data.items() if k in valid_columns}
+    
+    if existing_profile:
+        # Update existing profile
+        for key, value in filtered_data.items():
+            if value is not None:
+                setattr(existing_profile, key, value)
+        db.commit()
+        db.refresh(existing_profile)
+        return existing_profile
+    else:
+        # Create new profile with filtered data
+        new_profile = UserProfile(**filtered_data)
+        db.add(new_profile)
+        db.commit()
+        db.refresh(new_profile)
+        return new_profile 
