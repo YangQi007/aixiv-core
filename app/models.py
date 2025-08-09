@@ -19,6 +19,27 @@ class Submission(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
+
+class UserProfile(Base):
+    __tablename__ = "user_profiles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(String(255), unique=True, nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    title = Column(String(255))
+    affiliation = Column(String(500))
+    location = Column(String(255))
+    bio = Column(Text)
+    email = Column(String(255))
+    website = Column(String(500))
+    github_url = Column(String(500))
+    twitter_url = Column(String(500))
+    linkedin_url = Column(String(500))
+    avatar_url = Column(String(500))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
 class PaperReview(Base):
     __tablename__ = "paper_review"
 
