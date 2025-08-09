@@ -1,6 +1,7 @@
+from sqlalchemy import select, func, text
 from sqlalchemy.orm import Session
-from app.models import Submission
-from app.schemas import SubmissionCreate
+from app.models import Submission, PaperReview
+from app.schemas import SubmissionCreate, ReviewIn
 from typing import List, Optional
 
 def create_submission(db: Session, submission: SubmissionCreate) -> Submission:
@@ -63,4 +64,38 @@ def delete_submission(db: Session, submission_id: int) -> bool:
         db.delete(db_submission)
         db.commit()
         return True
-    return False 
+    return False
+
+def _next_review_id_for_paper(db: Session, paper_id: str) -> int:
+    next_id = db.execute(
+        text("SELECT COALESCE(MAX(review_id), 0) + 1 AS next_id FROM paper_review WHERE paper_id = :pid FOR UPDATE"),
+        {"pid": paper_id},
+    ).scalar_one()
+    return int(next_id)
+
+def create_paper_review(
+    db: Session,
+    payload: ReviewIn,
+    client_ip: Optional[str] = None,
+    reviewer_name: Optional[str] = "Anonymous Reviewer",
+    user_id: Optional[str] = None,
+    status: int = 2,
+    max_retries: int = 3
+) -> PaperReview:
+
+    with db.begin_nested():
+        review_id = _next_review_id_for_paper(db, payload.doi)
+
+        rec = PaperReview(
+            paper_id=payload.doi,
+            review_id=review_id,
+            review=payload.model_dump(),
+            status=status,
+            ip=client_ip,
+            reviewer=reviewer_name or "Anonymous Reviewer",
+            user_id=user_id,
+        )
+        db.add(rec)
+    db.commit()
+    db.refresh(rec)
+    return rec

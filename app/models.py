@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, Text, ARRAY, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, ARRAY, DateTime, BigInteger, Index, text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.sql import func
 from app.database import Base
 
@@ -16,4 +17,24 @@ class Submission(Base):
     s3_url = Column(Text, nullable=False)
     uploaded_by = Column(String(64), nullable=False)  # Assuming this references a users table
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now()) 
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+class PaperReview(Base):
+    __tablename__ = "paper_review"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    paper_id = Column(String(128), nullable=False)
+    review_id = Column(Integer, nullable=False)
+    review = Column(JSONB, nullable=False)
+    status = Column(Integer, nullable=False, server_default=text("2"))
+    create_time = Column(
+        func.now().type, nullable=False, server_default=func.now()
+    )
+    ip = Column(String(45))
+    like_count = Column(Integer, nullable=False, server_default=text("0"))
+    reviewer = Column(String(128), nullable=False, server_default=text("'Anonymous Reviewer'"))
+    user_id = Column(String(64), nullable=True)
+
+    __table_args__ = (
+        Index("idx_paper_review_paper_id", "paper_id"),
+    )
