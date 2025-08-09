@@ -31,7 +31,6 @@ async def submit_review(
             code=200,
             message="accepted",
             paper_id=rec.paper_id,
-            review_id=rec.review_id,
         )
     except Exception as e:
         raise HTTPException(

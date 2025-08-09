@@ -4,6 +4,7 @@ from app.models import Submission, PaperReview
 from app.schemas import SubmissionCreate, ReviewIn
 from typing import List, Optional
 
+
 def create_submission(db: Session, submission: SubmissionCreate) -> Submission:
     """
     Create a new submission in the database
@@ -24,11 +25,13 @@ def create_submission(db: Session, submission: SubmissionCreate) -> Submission:
     db.refresh(db_submission)
     return db_submission
 
+
 def get_submission(db: Session, submission_id: int) -> Optional[Submission]:
     """
     Get a submission by ID
     """
     return db.query(Submission).filter(Submission.id == submission_id).first()
+
 
 def get_submissions(db: Session, skip: int = 0, limit: int = 100) -> List[Submission]:
     """
@@ -36,11 +39,13 @@ def get_submissions(db: Session, skip: int = 0, limit: int = 100) -> List[Submis
     """
     return db.query(Submission).offset(skip).limit(limit).all()
 
+
 def get_submissions_by_user(db: Session, uploaded_by: str, skip: int = 0, limit: int = 100) -> List[Submission]:
     """
     Get submissions by user ID
     """
     return db.query(Submission).filter(Submission.uploaded_by == uploaded_by).offset(skip).limit(limit).all()
+
 
 def update_submission(db: Session, submission_id: int, submission_data: dict) -> Optional[Submission]:
     """
@@ -55,6 +60,7 @@ def update_submission(db: Session, submission_id: int, submission_data: dict) ->
         db.refresh(db_submission)
     return db_submission
 
+
 def delete_submission(db: Session, submission_id: int) -> bool:
     """
     Delete a submission
@@ -66,36 +72,24 @@ def delete_submission(db: Session, submission_id: int) -> bool:
         return True
     return False
 
-def _next_review_id_for_paper(db: Session, paper_id: str) -> int:
-    next_id = db.execute(
-        text("SELECT COALESCE(MAX(review_id), 0) + 1 AS next_id FROM paper_review WHERE paper_id = :pid FOR UPDATE"),
-        {"pid": paper_id},
-    ).scalar_one()
-    return int(next_id)
 
 def create_paper_review(
-    db: Session,
-    payload: ReviewIn,
-    client_ip: Optional[str] = None,
-    reviewer_name: Optional[str] = "Anonymous Reviewer",
-    user_id: Optional[str] = None,
-    status: int = 2,
-    max_retries: int = 3
+        db: Session,
+        payload: ReviewIn,
+        client_ip: str | None = None,
+        reviewer_name: str | None = "Anonymous Reviewer",
+        user_id: str | None = None,
+        status: int = 2,
 ) -> PaperReview:
-
-    with db.begin_nested():
-        review_id = _next_review_id_for_paper(db, payload.doi)
-
-        rec = PaperReview(
-            paper_id=payload.doi,
-            review_id=review_id,
-            review=payload.model_dump(),
-            status=status,
-            ip=client_ip,
-            reviewer=reviewer_name or "Anonymous Reviewer",
-            user_id=user_id,
-        )
-        db.add(rec)
+    rec = PaperReview(
+        paper_id=payload.doi,
+        review=payload.model_dump(),
+        status=status,
+        ip=client_ip,
+        reviewer=reviewer_name or "Anonymous Reviewer",
+        user_id=user_id,
+    )
+    db.add(rec)
     db.commit()
     db.refresh(rec)
     return rec

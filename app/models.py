@@ -24,7 +24,6 @@ class PaperReview(Base):
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     paper_id = Column(String(128), nullable=False)
-    review_id = Column(Integer, nullable=False)
     review = Column(JSONB, nullable=False)
     status = Column(Integer, nullable=False, server_default=text("2"))
     create_time = Column(

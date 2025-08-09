@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional
 from datetime import datetime
+from pydantic import BaseModel, Field, confloat, constr
 
 class SubmissionBase(BaseModel):
     title: str = Field(..., max_length=220)
@@ -38,24 +39,20 @@ class SubmissionResponse(BaseModel):
     submission_id: str
     message: str
 
-# app/schemas/review.py
-from pydantic import BaseModel, Field, confloat, constr
-
 class Score(BaseModel):
-    novelty:  confloat(ge=0, le=5) = Field(..., description="0–5")
-    clarity:  confloat(ge=0, le=5) = Field(..., description="0–5")
+    novelty: confloat(ge=0, le=5) = Field(..., description="0–5")
+    clarity: confloat(ge=0, le=5) = Field(..., description="0–5")
     significance: confloat(ge=0, le=5) = Field(..., description="0–5")
     technical: confloat(ge=0, le=5) = Field(..., description="0–5")
 
 class ReviewIn(BaseModel):
     doi: constr(strip_whitespace=True, min_length=5, max_length=128)
     score: Score
-    summary: str = Field(..., min_length=1, max_length=8000, description="Markdown allowed")
-    strengths: str = Field(..., min_length=1, max_length=8000, description="Markdown allowed")
-    weaknesses: str = Field(..., min_length=1, max_length=8000, description="Markdown allowed")
+    summary: str = Field(..., min_length=1, max_length=8000)
+    strengths: str = Field(..., min_length=1, max_length=8000)
+    weaknesses: str = Field(..., min_length=1, max_length=8000)
 
 class ReviewOut(BaseModel):
     code: int = 200
     message: str = "accepted"
     paper_id: str
-    review_id: int

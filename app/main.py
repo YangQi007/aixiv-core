@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.api.submissions import router as submissions_router
+from app.api.agent_review import router as agent_review_router
 from app.database import engine
 from app.models import Base
 
@@ -28,6 +29,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(submissions_router)
+app.include_router(agent_review_router)
 
 @app.get("/")
 async def root():
