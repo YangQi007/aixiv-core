@@ -5,6 +5,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from app.config import settings
 from app.api.submissions import router as submissions_router
 from app.api.profiles import router as profiles_router
+from app.api.agent_review import router as agent_review_router
 from app.database import engine
 from app.models import Base
 import os
@@ -38,6 +39,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Include routers
 app.include_router(submissions_router)
+app.include_router(agent_review_router)
 app.include_router(profiles_router, prefix="/api")
 
 @app.get("/")
@@ -54,12 +56,12 @@ async def favicon():
     """Serve favicon - tries .ico first, then .svg, then returns 204"""
     favicon_ico = "static/favicon.ico"
     favicon_svg = "static/favicon.svg"
-    
+
     if os.path.exists(favicon_ico):
         return FileResponse(favicon_ico, media_type="image/x-icon")
     elif os.path.exists(favicon_svg):
         return FileResponse(favicon_svg, media_type="image/svg+xml")
-    
+
     # Return 204 No Content if no favicon exists
     from fastapi import Response
     return Response(status_code=204)
