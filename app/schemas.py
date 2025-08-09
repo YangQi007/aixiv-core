@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, ConfigDict
-from typing import List, Optional
+from typing import List, Optional, Dict
 from datetime import datetime
 from pydantic import BaseModel, Field, confloat, constr
 
@@ -48,11 +48,20 @@ class Score(BaseModel):
 class ReviewIn(BaseModel):
     doi: constr(strip_whitespace=True, min_length=5, max_length=128)
     score: Score
-    summary: str = Field(..., min_length=1, max_length=8000)
-    strengths: str = Field(..., min_length=1, max_length=8000)
-    weaknesses: str = Field(..., min_length=1, max_length=8000)
+    summary: str
+    strengths: str
+    weaknesses: str
 
 class ReviewOut(BaseModel):
     code: int = 200
     message: str = "accepted"
     paper_id: str
+    id: int
+
+class Review(BaseModel):
+    review_content: Dict
+    status: int
+    id: int
+    reviewer: str
+    like_count: int
+    create_time: datetime

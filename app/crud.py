@@ -1,8 +1,8 @@
-from sqlalchemy import select, func, text
+from datetime import datetime
 from sqlalchemy.orm import Session
 from app.models import Submission, PaperReview
-from app.schemas import SubmissionCreate, ReviewIn
-from typing import List, Optional
+from app.schemas import SubmissionCreate, ReviewIn, ReviewOut, Review
+from typing import List, Optional, Any
 
 
 def create_submission(db: Session, submission: SubmissionCreate) -> Submission:
@@ -81,9 +81,12 @@ def create_paper_review(
         user_id: str | None = None,
         status: int = 2,
 ) -> PaperReview:
+    review_data = payload.model_dump()
+    review_data.pop("doi", None)
+
     rec = PaperReview(
         paper_id=payload.doi,
-        review=payload.model_dump(),
+        review=review_data,
         status=status,
         ip=client_ip,
         reviewer=reviewer_name or "Anonymous Reviewer",
@@ -93,3 +96,58 @@ def create_paper_review(
     db.commit()
     db.refresh(rec)
     return rec
+
+
+def get_reviews(
+        db: Session,
+        paper_id: str,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
+        status: Optional[int] = None
+) -> list[Review]:
+    query = db.query(PaperReview).filter(PaperReview.paper_id == paper_id)
+    if start_date:
+        query = query.filter(PaperReview.create_time >= start_date)
+    if end_date:
+        query = query.filter(PaperReview.create_time <= end_date)
+    if status is not None:
+        query = query.filter(PaperReview.status == status)
+
+    reviews = query.all()
+
+    reviews_list = [Review(
+        id=r.id,
+        review_content=r.review,
+        status=r.status,
+        reviewer=r.reviewer,
+        like_count=r.like_count,
+        create_time=r.create_time
+    ) for r in reviews]
+
+    return reviews_list
+
+
+
+def like_review(db: Session, review_id: int, paper_id: str):
+    review = db.query(PaperReview).filter(PaperReview.paper_id == paper_id, PaperReview.id == review_id).first()
+
+    if not review:
+        return None
+
+    review.like_count += 1
+    db.commit()
+    db.refresh(review)
+    return review
+
+
+def dislike_review(db: Session, review_id: int, paper_id: str):
+    review = db.query(PaperReview).filter(PaperReview.paper_id == paper_id, PaperReview.id == review_id).first()
+
+    if not review:
+        return None
+
+    if review.like_count > 0:
+        review.like_count -= 1
+    db.commit()
+    db.refresh(review)
+    return review
