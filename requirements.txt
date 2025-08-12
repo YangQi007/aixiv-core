@@ -24,6 +24,9 @@ Pillow==10.1.0
 # Authentication
 PyJWT==2.8.0
 
+# Form handling
+python-multipart==0.0.6
+
 # Testing dependencies
 pytest==7.4.3
 pytest-cov==4.1.0
