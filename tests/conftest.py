@@ -4,6 +4,7 @@ Pytest configuration and common fixtures for AIXIV tests
 import sys
 import os
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 # Add the project root to Python path
 project_root = Path(__file__).parent.parent
@@ -38,6 +39,18 @@ def setup_test_environment():
     """Setup test environment before each test"""
     # Set testing environment
     os.environ["TESTING"] = "true"
-    yield
+    
+    # Mock database connections to prevent real DB access
+    with patch('app.database.get_db') as mock_get_db:
+        # Create a mock database session
+        mock_db = Mock()
+        mock_get_db.return_value = mock_db
+        yield
+    
     # Cleanup after each test
-    pass 
+    pass
+
+@pytest.fixture
+def mock_db():
+    """Mock database session for tests"""
+    return Mock() 

@@ -1,4 +1,5 @@
 import pytest
+from unittest.mock import Mock, patch
 
 class TestHealthEndpoints:
     """Test health-related endpoints"""
@@ -55,27 +56,64 @@ class TestUploadEndpoints:
         assert "Only PDF and LaTeX files" in response.json()["detail"]
 
 class TestSubmissionEndpoints:
-    """Test submission-related endpoints"""
+    """Test submission-related endpoints with proper mocking"""
     
-    def test_submit_paper(self, client, sample_submission_data):
-        """Test the paper submission endpoint"""
+    @patch('app.crud.create_submission')
+    def test_submit_paper_success(self, mock_create_submission, client, sample_submission_data):
+        """Test successful paper submission with mocked database"""
+        # Mock successful database operation
+        mock_create_submission.return_value = Mock(id=1, title="Test Paper")
+        
         response = client.post("/api/submit", json=sample_submission_data)
-        # This might fail if database is not available, but should not crash
-        assert response.status_code in [200, 500]
-        if response.status_code == 200:
-            data = response.json()
-            assert "success" in data
-            assert "submission_id" in data
-            assert "message" in data
+        assert response.status_code == 200
+        
+        data = response.json()
+        assert "success" in data
+        assert data["success"] == True
+        assert "submission_id" in data
+        assert "message" in data
+        
+        # Verify the mock was called correctly
+        mock_create_submission.assert_called_once()
 
-    def test_get_submissions(self, client):
-        """Test getting submissions"""
+    @patch('app.crud.create_submission')
+    def test_submit_paper_database_error(self, mock_create_submission, client, sample_submission_data):
+        """Test paper submission when database fails"""
+        # Mock database error
+        mock_create_submission.side_effect = Exception("Database connection failed")
+        
+        response = client.post("/api/submit", json=sample_submission_data)
+        assert response.status_code == 500
+        
+        data = response.json()
+        assert "detail" in data
+        assert "Error submitting paper" in data["detail"]
+
+    @patch('app.crud.get_submissions')
+    def test_get_submissions_success(self, mock_get_submissions, client):
+        """Test getting submissions with mocked database"""
+        # Mock successful database operation
+        mock_submissions = [
+            Mock(id=1, title="Paper 1", abstract="Abstract 1"),
+            Mock(id=2, title="Paper 2", abstract="Abstract 2")
+        ]
+        mock_get_submissions.return_value = mock_submissions
+        
         response = client.get("/api/submissions")
-        # This might fail if database is not available, but should not crash
-        assert response.status_code in [200, 500]
-        if response.status_code == 200:
-            data = response.json()
-            assert isinstance(data, list)
+        assert response.status_code == 200
+        
+        data = response.json()
+        assert isinstance(data, list)
+        assert len(data) == 2
+
+    @patch('app.crud.get_submissions')
+    def test_get_submissions_database_error(self, mock_get_submissions, client):
+        """Test getting submissions when database fails"""
+        # Mock database error
+        mock_get_submissions.side_effect = Exception("Database connection failed")
+        
+        response = client.get("/api/submissions")
+        assert response.status_code == 500
 
 class TestCORSAndHeaders:
     """Test CORS and header configurations"""
