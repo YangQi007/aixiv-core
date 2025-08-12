@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, EmailStr, HttpUrl
 from typing import List, Optional
 from datetime import datetime
 
@@ -36,4 +36,39 @@ class UploadUrlResponse(BaseModel):
 class SubmissionResponse(BaseModel):
     success: bool
     submission_id: str
-    message: str 
+    message: str
+
+
+class ProfileUpdateRequest(BaseModel):
+    user_id: str
+    name: str
+    title: Optional[str] = None
+    affiliation: Optional[str] = None
+    location: Optional[str] = None
+    bio: Optional[str] = None
+    email: Optional[EmailStr] = None
+    website: Optional[HttpUrl] = None
+    github: Optional[HttpUrl] = None
+    twitter: Optional[HttpUrl] = None
+    linkedin: Optional[HttpUrl] = None
+    avatar_url: Optional[str] = None
+
+
+class ProfileResponse(BaseModel):
+    id: int
+    user_id: str
+    name: str
+    title: Optional[str]
+    affiliation: Optional[str]
+    location: Optional[str]
+    bio: Optional[str]
+    email: Optional[str]
+    website: Optional[str]
+    github_url: Optional[str]
+    twitter_url: Optional[str]
+    linkedin_url: Optional[str]
+    avatar_url: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+    
+    model_config = ConfigDict(from_attributes=True) 

@@ -33,7 +33,7 @@ class Settings(BaseSettings):
             # Parse comma-separated string from environment
             return [origin.strip() for origin in env_origins.split(",")]
         
-        # Default origins
+        # Default origins (simplified - only essential ones)
         return [
             "https://aixiv.co",
             "https://www.aixiv.co",
