@@ -39,14 +39,7 @@ def setup_test_environment():
     """Setup test environment before each test"""
     # Set testing environment
     os.environ["TESTING"] = "true"
-    
-    # Mock database connections to prevent real DB access
-    with patch('app.database.get_db') as mock_get_db:
-        # Create a mock database session
-        mock_db = Mock()
-        mock_get_db.return_value = mock_db
-        yield
-    
+    yield
     # Cleanup after each test
     pass
 

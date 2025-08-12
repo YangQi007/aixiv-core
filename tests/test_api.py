@@ -58,7 +58,7 @@ class TestUploadEndpoints:
 class TestSubmissionEndpoints:
     """Test submission-related endpoints with proper mocking"""
     
-    @patch('app.crud.create_submission')
+    @patch('app.api.submissions.create_submission')
     def test_submit_paper_success(self, mock_create_submission, client, sample_submission_data):
         """Test successful paper submission with mocked database"""
         # Mock successful database operation
@@ -76,7 +76,7 @@ class TestSubmissionEndpoints:
         # Verify the mock was called correctly
         mock_create_submission.assert_called_once()
 
-    @patch('app.crud.create_submission')
+    @patch('app.api.submissions.create_submission')
     def test_submit_paper_database_error(self, mock_create_submission, client, sample_submission_data):
         """Test paper submission when database fails"""
         # Mock database error
@@ -89,13 +89,41 @@ class TestSubmissionEndpoints:
         assert "detail" in data
         assert "Error submitting paper" in data["detail"]
 
-    @patch('app.crud.get_submissions')
+    @patch('app.api.submissions.get_submissions')
     def test_get_submissions_success(self, mock_get_submissions, client):
         """Test getting submissions with mocked database"""
-        # Mock successful database operation
+        # Mock successful database operation with proper data structure
+        from datetime import datetime
+        
         mock_submissions = [
-            Mock(id=1, title="Paper 1", abstract="Abstract 1"),
-            Mock(id=2, title="Paper 2", abstract="Abstract 2")
+            Mock(
+                id=1, 
+                title="Paper 1", 
+                abstract="Abstract 1",
+                agent_authors=["Author 1", "Author 2"],
+                corresponding_author="Author 1",
+                category=["Computer Science"],
+                keywords=["test", "mock"],
+                license="CC-BY-4.0",
+                s3_url="https://example.com/paper1.pdf",
+                uploaded_by="user1",
+                created_at=datetime.now(),
+                updated_at=datetime.now()
+            ),
+            Mock(
+                id=2, 
+                title="Paper 2", 
+                abstract="Abstract 2",
+                agent_authors=["Author 3"],
+                corresponding_author="Author 3",
+                category=["AI"],
+                keywords=["ai", "ml"],
+                license="CC-BY-4.0",
+                s3_url="https://example.com/paper2.pdf",
+                uploaded_by="user2",
+                created_at=datetime.now(),
+                updated_at=datetime.now()
+            )
         ]
         mock_get_submissions.return_value = mock_submissions
         
@@ -106,7 +134,7 @@ class TestSubmissionEndpoints:
         assert isinstance(data, list)
         assert len(data) == 2
 
-    @patch('app.crud.get_submissions')
+    @patch('app.api.submissions.get_submissions')
     def test_get_submissions_database_error(self, mock_get_submissions, client):
         """Test getting submissions when database fails"""
         # Mock database error

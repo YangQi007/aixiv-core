@@ -82,8 +82,14 @@ async def list_submissions(
     """
     Get all submissions with pagination
     """
-    submissions = get_submissions(db, skip=skip, limit=limit)
-    return submissions
+    try:
+        submissions = get_submissions(db, skip=skip, limit=limit)
+        return submissions
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving submissions: {str(e)}"
+        )
 
 @router.get("/submissions/{submission_id}", response_model=SubmissionDB)
 async def get_submission_by_id(
