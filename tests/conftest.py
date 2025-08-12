@@ -11,13 +11,20 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 import pytest
-from fastapi.testclient import TestClient
-from app.main import app
 
 @pytest.fixture
 def client():
     """Test client fixture for all tests"""
-    return TestClient(app)
+    # Import here to avoid import issues
+    try:
+        from fastapi.testclient import TestClient
+        from app.main import app
+        return TestClient(app)
+    except Exception as e:
+        # If TestClient fails, try alternative approach
+        import httpx
+        from app.main import app
+        return httpx.Client(app=app, base_url="http://test")
 
 @pytest.fixture
 def sample_submission_data():
