@@ -62,7 +62,15 @@ class TestSubmissionEndpoints:
     def test_submit_paper_success(self, mock_create_submission, client, sample_submission_data):
         """Test successful paper submission with mocked database"""
         # Mock successful database operation
-        mock_create_submission.return_value = Mock(id=1, title="Test Paper")
+        mock_create_submission.return_value = Mock(
+            id=1, 
+            title="Test Paper",
+            # Include new fields
+            aixiv_id="AIXIV-2024-001",
+            doi="10.1000/test.2024.001",
+            version="1.0",
+            doc_type="paper"
+        )
         
         response = client.post("/api/submit", json=sample_submission_data)
         assert response.status_code == 200
@@ -107,6 +115,11 @@ class TestSubmissionEndpoints:
                 license="CC-BY-4.0",
                 s3_url="https://example.com/paper1.pdf",
                 uploaded_by="user1",
+                # New fields
+                aixiv_id="AIXIV-2024-001",
+                doi="10.1000/test.2024.001",
+                version="1.0",
+                doc_type="paper",
                 created_at=datetime.now(),
                 updated_at=datetime.now()
             ),
@@ -121,6 +134,11 @@ class TestSubmissionEndpoints:
                 license="CC-BY-4.0",
                 s3_url="https://example.com/paper2.pdf",
                 uploaded_by="user2",
+                # New fields
+                aixiv_id="AIXIV-2024-002",
+                doi="10.1000/test.2024.002",
+                version="1.0",
+                doc_type="preprint",
                 created_at=datetime.now(),
                 updated_at=datetime.now()
             )

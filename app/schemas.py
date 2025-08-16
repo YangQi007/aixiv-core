@@ -14,6 +14,12 @@ class SubmissionBase(BaseModel):
     license: str = Field(..., max_length=50)
     abstract: Optional[str] = None
     s3_url: str
+    
+    # New fields
+    aixiv_id: Optional[str] = Field(None, max_length=50)
+    doi: Optional[str] = Field(None, max_length=100)
+    version: Optional[str] = Field("1.0", max_length=20)
+    doc_type: str = Field(..., max_length=50)  # Document type (paper, preprint, review, etc.)
 
 class SubmissionCreate(SubmissionBase):
     uploaded_by: str = Field(..., max_length=64)

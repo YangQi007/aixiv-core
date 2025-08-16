@@ -16,6 +16,13 @@ class Submission(Base):
     abstract = Column(Text)
     s3_url = Column(Text, nullable=False)
     uploaded_by = Column(String(64), nullable=False)  # Assuming this references a users table
+    
+    # New fields
+    aixiv_id = Column(String(50), unique=True, index=True)  # AIXIV identifier
+    doi = Column(String(100), unique=True, index=True)      # Digital Object Identifier
+    version = Column(String(20), default="1.0")             # Paper version
+    doc_type = Column(String(50), nullable=False)  # Document type (paper, preprint, review, etc.)
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
