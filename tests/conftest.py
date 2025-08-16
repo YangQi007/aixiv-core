@@ -38,7 +38,13 @@ def sample_submission_data():
         "license": "CC-BY-4.0",
         "abstract": "Test abstract",
         "s3_url": "https://test-bucket.s3.amazonaws.com/test.pdf",
-        "uploaded_by": "test-user"
+        "uploaded_by": "test-user",
+        # New required field
+        "doc_type": "paper",
+        # New optional fields
+        "aixiv_id": "AIXIV-2024-001",
+        "doi": "10.1000/test.2024.001",
+        "version": "1.0"
     }
 
 @pytest.fixture(autouse=True)
