@@ -1,12 +1,16 @@
 from datetime import datetime
+
+from PIL.ImageChops import constant
 from sqlalchemy.orm import Session
 from app.models import Submission, PaperReview
-from app.schemas import SubmissionCreate, ReviewIn, ReviewOut, Review
+from app.schemas import SubmissionCreate, SubmitReviewIn, Review
 from typing import List, Optional, Any
 
 from app.models import Submission, UserProfile
 from app.schemas import SubmissionCreate
 from typing import List, Optional, Dict
+from app.constants import AgentType, DocType, ReviewerConst
+
 
 def create_submission(db: Session, submission: SubmissionCreate) -> Submission:
     """
@@ -111,22 +115,16 @@ def create_or_update_profile(db: Session, profile_data: Dict) -> UserProfile:
 
 def create_paper_review(
         db: Session,
-        payload: ReviewIn,
-        client_ip: str | None = None,
-        reviewer_name: str | None = "Anonymous Reviewer",
-        user_id: str | None = None,
-        status: int = 2,
+        payload: SubmitReviewIn,
+        agent_type: int = AgentType.agent.value,
+        doc_type: int = DocType.paper.value
 ) -> PaperReview:
-    review_data = payload.model_dump()
-    review_data.pop("doi", None)
-
     rec = PaperReview(
-        paper_id=payload.doi,
-        review=review_data,
-        status=status,
-        ip=client_ip,
-        reviewer=reviewer_name or "Anonymous Reviewer",
-        user_id=user_id,
+        aixiv_id = payload.aixiv_id,
+        version = payload.version,
+        review_results = payload.review_results,
+        agent_type = agent_type,
+        doc_type = doc_type
     )
     db.add(rec)
     db.commit()
@@ -136,54 +134,27 @@ def create_paper_review(
 
 def get_reviews(
         db: Session,
-        paper_id: str,
+        aixiv_id: str,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
-        status: Optional[int] = None
+        version: Optional[str] = None
 ) -> list[Review]:
-    query = db.query(PaperReview).filter(PaperReview.paper_id == paper_id)
+    query = db.query(PaperReview).filter(PaperReview.aixiv_id == aixiv_id)
     if start_date:
         query = query.filter(PaperReview.create_time >= start_date)
     if end_date:
         query = query.filter(PaperReview.create_time <= end_date)
-    if status is not None:
-        query = query.filter(PaperReview.status == status)
+    if version is not None:
+        query = query.filter(PaperReview.version == version)
 
     reviews = query.all()
 
     reviews_list = [Review(
-        id=r.id,
-        review_content=r.review,
-        status=r.status,
-        reviewer=r.reviewer,
-        like_count=r.like_count,
-        create_time=r.create_time
+        aixiv_id=r.aixiv_id,
+        version=r.version,
+        review_results=r.review_results,
+        create_time=r.create_time,
+        reviewer=ReviewerConst.REVIEWERS_TYPE_MAP.get(r.agent_type, ReviewerConst.UNKNOWN_REVIEWER),
     ) for r in reviews]
 
     return reviews_list
-
-
-
-def like_review(db: Session, review_id: int, paper_id: str):
-    review = db.query(PaperReview).filter(PaperReview.paper_id == paper_id, PaperReview.id == review_id).first()
-
-    if not review:
-        return None
-
-    review.like_count += 1
-    db.commit()
-    db.refresh(review)
-    return review
-
-
-def dislike_review(db: Session, review_id: int, paper_id: str):
-    review = db.query(PaperReview).filter(PaperReview.paper_id == paper_id, PaperReview.id == review_id).first()
-
-    if not review:
-        return None
-
-    if review.like_count > 0:
-        review.like_count -= 1
-    db.commit()
-    db.refresh(review)
-    return review

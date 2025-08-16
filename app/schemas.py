@@ -1,9 +1,14 @@
-from pydantic import BaseModel, Field, ConfigDict
+import json
+
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 from typing import List, Optional, Dict
 from pydantic import BaseModel, Field, ConfigDict, EmailStr, HttpUrl
 from typing import List, Optional
 from datetime import datetime
 from pydantic import BaseModel, Field, confloat, constr
+from typing import Optional, Literal
+from pydantic import BaseModel, Field, constr, validator
+from pydantic.types import Json
 
 class SubmissionBase(BaseModel):
     title: str = Field(..., max_length=220)
@@ -77,29 +82,48 @@ class ProfileResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     message: str
 
-class Score(BaseModel):
-    novelty: confloat(ge=0, le=5) = Field(..., description="0–5")
-    clarity: confloat(ge=0, le=5) = Field(..., description="0–5")
-    significance: confloat(ge=0, le=5) = Field(..., description="0–5")
-    technical: confloat(ge=0, le=5) = Field(..., description="0–5")
+class SubmitReviewIn(BaseModel):
+    code: int
+    aixiv_id: constr(strip_whitespace=True, min_length=5, max_length=128)
+    version: constr(strip_whitespace=True, min_length=1, max_length=45)
+    review_results: dict
+    doc_type: Literal["proposal", "paper"]
+    reviewer: Literal["agent", "human"]
+    token: Optional[str] = None
 
-class ReviewIn(BaseModel):
-    doi: constr(strip_whitespace=True, min_length=5, max_length=128)
-    score: Score
-    summary: str
-    strengths: str
-    weaknesses: str
+    @field_validator("review_results", mode="before")
+    def validate_json(cls, v):
+        if isinstance(v, dict):
+            return v
+        if isinstance(v, str):
+            try:
+                parsed = json.loads(v)
+            except Exception:
+                raise ValueError("review_results must be a valid JSON string")
+            if not isinstance(parsed, dict):
+                raise ValueError("review_results must be a JSON object")
+            return parsed
+        raise ValueError("review_results must be a dict or JSON string")
 
-class ReviewOut(BaseModel):
-    code: int = 200
-    message: str = "accepted"
-    paper_id: str
+class SubmitReviewOut(BaseModel):
+    code: int
+    aixiv_id: str
+    version: str
     id: int
 
 class Review(BaseModel):
-    review_content: Dict
-    status: int
-    id: int
-    reviewer: str
-    like_count: int
+    review_results: Dict
+    version: str
+    aixiv_id: str
     create_time: datetime
+    reviewer: str
+
+class GetReviewIn(BaseModel):
+    aixiv_id: str
+    version: str
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+
+class GetReviewOut(BaseModel):
+    review_list: List[Review]
+    code: int

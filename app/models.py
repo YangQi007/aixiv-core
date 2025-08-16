@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, ARRAY, DateTime, BigInteger, Index, text
+from sqlalchemy import Column, Integer, String, Text, ARRAY, DateTime, BigInteger, Index, text,SmallInteger, TIMESTAMP
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.sql import func
 from app.database import Base
@@ -44,17 +44,16 @@ class PaperReview(Base):
     __tablename__ = "paper_review"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    paper_id = Column(String(128), nullable=False)
-    review = Column(JSONB, nullable=False)
-    status = Column(Integer, nullable=False, server_default=text("2"))
+    aixiv_id = Column(String(128), nullable=False)
+    version = Column(String(45), nullable=False)
+    review_results = Column(JSONB, nullable=False)
+    agent_type = Column(SmallInteger, nullable=False, server_default=text("1"))
+    doc_type = Column(SmallInteger, nullable=False, server_default=text("1"))
     create_time = Column(
-        func.now().type, nullable=False, server_default=func.now()
+        TIMESTAMP, nullable=False, server_default=func.now()
     )
-    ip = Column(String(45))
     like_count = Column(Integer, nullable=False, server_default=text("0"))
-    reviewer = Column(String(128), nullable=False, server_default=text("'Anonymous Reviewer'"))
-    user_id = Column(String(64), nullable=True)
 
     __table_args__ = (
-        Index("idx_paper_review_paper_id", "paper_id"),
+        Index("idx_paper_review_aixiv_id_create_time", "aixiv_id", "create_time"),
     )
