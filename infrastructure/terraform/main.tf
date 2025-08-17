@@ -134,11 +134,12 @@ resource "aws_ecs_task_definition" "aixiv_backend" {
 
 # ECS Service
 resource "aws_ecs_service" "aixiv_backend" {
-  name            = "aixiv-backend"
-  cluster         = aws_ecs_cluster.aixiv.id
-  task_definition = aws_ecs_task_definition.aixiv_backend.arn
-  desired_count   = var.service_desired_count
-  launch_type     = "FARGATE"
+  name                    = "aixiv-backend"
+  cluster                 = aws_ecs_cluster.aixiv.id
+  task_definition         = aws_ecs_task_definition.aixiv_backend.arn
+  desired_count           = var.service_desired_count
+  launch_type             = "FARGATE"
+  enable_execute_command  = true
 
   network_configuration {
     security_groups  = [aws_security_group.ecs_tasks.id]
