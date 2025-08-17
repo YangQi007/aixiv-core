@@ -111,13 +111,13 @@ jobs:
           --query 'taskArns[0]' \
           --output text)
         
-        # Execute the migration script inside the container
-        aws ecs execute-command \
+        # Run migrations using script to create a fake TTY
+        script -q -c "aws ecs execute-command \
           --cluster ${{ env.ECS_CLUSTER }} \
           --task $TASK_ARN \
           --container aixiv-backend \
           --interactive \
-          --command "/bin/bash scripts/run_migrations.sh" << /dev/null
+          --command 'alembic upgrade head'" /dev/null
     
     - name: Get ALB DNS name
       id: alb-dns
