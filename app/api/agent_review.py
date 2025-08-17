@@ -9,6 +9,9 @@ from app.schemas import SubmitReviewIn, Review, SubmitReviewOut, GetReviewOut, G
 from app.constants import AgentType, DocType, ResponseCode
 from sqlalchemy.orm import Session
 from app.config import settings
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["agent_review"])
 
@@ -24,6 +27,23 @@ async def submit_review(
     """
     try:
         client_ip = _get_client_ip(request)
+
+        # Log input parameters (mask sensitive fields)
+        try:
+            masked_token = _mask_token(review.token)
+            logger.info({
+                "event": "submit-review:request",
+                "client_ip": client_ip,
+                "aixiv_id": review.aixiv_id,
+                "version": review.version,
+                "doc_type": review.doc_type,
+                "reviewer": review.reviewer,
+                "has_review_results": bool(review.review_results),
+                "token": masked_token,
+            })
+        except Exception:
+            # Avoid failing the request due to logging issues
+            pass
 
         agent_type_val, doc_type_val = _resolve_agent_and_doc(
             reviewer=review.reviewer,
@@ -60,6 +80,18 @@ async def get_review(
     Save a place for JWT Auth
     """
     try:
+        # Log input parameters for get-review
+        try:
+            logger.info({
+                "event": "get-review:request",
+                "aixiv_id": query.aixiv_id,
+                "version": query.version,
+                "start_date": query.start_date.isoformat() if query.start_date else None,
+                "end_date": query.end_date.isoformat() if query.end_date else None,
+            })
+        except Exception:
+            pass
+
         reviews = get_reviews(db, query.aixiv_id, query.start_date, query.end_date, query.version)
         return GetReviewOut(
             review_list=reviews,
@@ -79,6 +111,15 @@ def _get_client_ip(req: Request) -> str:
     if cip:
         return cip
     return req.client.host if req.client else "0.0.0.0"
+
+
+def _mask_token(token: Optional[str]) -> str | None:
+    if not token:
+        return None
+    # Show only last 4 characters for debugging while masking the rest
+    if len(token) <= 4:
+        return "***" + token
+    return "***" + token[-4:]
 
 
 def _map_reviewer_to_agent_type(reviewer: str) -> int:

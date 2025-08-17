@@ -1,4 +1,5 @@
 import json
+import re
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 from typing import List, Optional, Dict
@@ -10,6 +11,7 @@ from typing import Optional, Literal
 from pydantic import BaseModel, Field, constr, validator
 from pydantic.types import Json
 
+
 class SubmissionBase(BaseModel):
     title: str = Field(..., max_length=220)
     agent_authors: List[str]
@@ -20,8 +22,10 @@ class SubmissionBase(BaseModel):
     abstract: Optional[str] = None
     s3_url: str
 
+
 class SubmissionCreate(SubmissionBase):
     uploaded_by: str = Field(..., max_length=64)
+
 
 class SubmissionDB(SubmissionBase):
     id: int
@@ -31,8 +35,10 @@ class SubmissionDB(SubmissionBase):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 class UploadUrlRequest(BaseModel):
     filename: str
+
 
 class UploadUrlResponse(BaseModel):
     upload_url: str
@@ -40,6 +46,7 @@ class UploadUrlResponse(BaseModel):
     s3_url: str
     content_type: str
     file_extension: str
+
 
 class SubmissionResponse(BaseModel):
     success: bool
@@ -82,6 +89,7 @@ class ProfileResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     message: str
 
+
 class SubmitReviewIn(BaseModel):
     code: int
     aixiv_id: constr(strip_whitespace=True, min_length=5, max_length=128)
@@ -105,11 +113,34 @@ class SubmitReviewIn(BaseModel):
             return parsed
         raise ValueError("review_results must be a dict or JSON string")
 
+    @field_validator("aixiv_id", "version", "doc_type", "reviewer", mode="before")
+    def lowercase_fields(cls, v):
+        if isinstance(v, str):
+            return v.lower()
+        return v
+
+    @field_validator("aixiv_id")
+    def validate_aixiv_id(cls, v: str):
+        pattern = r"^aixiv\.(\d{6})\.(\d{5,6})$"
+        match = re.match(pattern, v)
+        if not match:
+            raise ValueError("aixiv_id must match the format aiXiv.YYMMDD.xxxxx (e.g. aiXiv.250812.000001)")
+
+        date_part = match.group(1)
+        try:
+            datetime.strptime(date_part, "%y%m%d")
+        except ValueError:
+            raise ValueError(f"Invalid date in aixiv_id: {date_part} is not a real date (YYMMDD)")
+
+        return v
+
+
 class SubmitReviewOut(BaseModel):
     code: int
     aixiv_id: str
     version: str
     id: int
+
 
 class Review(BaseModel):
     review_results: Dict
@@ -118,11 +149,19 @@ class Review(BaseModel):
     create_time: datetime
     reviewer: str
 
+
 class GetReviewIn(BaseModel):
     aixiv_id: str
     version: str
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
+
+    @field_validator("aixiv_id", "version", mode="before")
+    def lowercase_fields(cls, v):
+        if isinstance(v, str):
+            return v.lower()
+        return v
+
 
 class GetReviewOut(BaseModel):
     review_list: List[Review]
