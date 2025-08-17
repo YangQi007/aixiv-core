@@ -89,12 +89,35 @@ jobs:
         image: ${{ steps.build-image.outputs.image }}
     
     - name: Deploy Amazon ECS task definition
-      uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+      uses: aws-actions/amazon-ecs-deploy-task-definition@1
       with:
         task-definition: ${{ steps.task-def.outputs.task-definition }}
         service: ${{ env.ECS_SERVICE }}
         cluster: ${{ env.ECS_CLUSTER }}
         wait-for-service-stability: true
+    
+    - name: Wait for ECS service to be stable
+      run: |
+        aws ecs wait services-stable \
+          --cluster ${{ env.ECS_CLUSTER }} \
+          --services ${{ env.ECS_SERVICE }}
+    
+    - name: Run database migrations
+      run: |
+        # Get the task ARN
+        TASK_ARN=$(aws ecs list-tasks \
+          --cluster ${{ env.ECS_CLUSTER }} \
+          --service-name ${{ env.ECS_SERVICE }} \
+          --query 'taskArns[0]' \
+          --output text)
+        
+        # Run migrations inside the container
+        aws ecs execute-command \
+          --cluster ${{ env.ECS_CLUSTER }} \
+          --task $TASK_ARN \
+          --container aixiv-backend \
+          --interactive \
+          --command "alembic upgrade head" || echo "Migration step completed"
     
     - name: Get ALB DNS name
       id: alb-dns
