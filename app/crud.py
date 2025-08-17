@@ -1,9 +1,9 @@
 from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from app.models import Submission, PaperReview
+from app.models import Submission, UserProfile, PaperReview
 from app.schemas import SubmissionCreate, ReviewIn, ReviewOut, Review
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Dict
 from datetime import datetime
 
 def generate_aixiv_id(db: Session) -> str:

@@ -54,7 +54,6 @@ class UserProfile(Base):
     avatar_url = Column(String(500))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 class PaperReview(Base):
     __tablename__ = "paper_review"
