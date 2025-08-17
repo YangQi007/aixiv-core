@@ -45,7 +45,7 @@ def create_submission(db: Session, submission: SubmissionCreate) -> Submission:
         s3_url=submission.s3_url,
         uploaded_by=submission.uploaded_by,
         doi=submission.doi,
-        doc_type=submission.doc_type
+        doc_type=submission.doc_type,
         # Version is now handled by the database default='1.0'
         # Status is now handled by the database default='Under Review'
     )
