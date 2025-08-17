@@ -111,13 +111,13 @@ jobs:
           --query 'taskArns[0]' \
           --output text)
         
-        # Run migrations, piping an empty "here document" to keep the session open
+        # Execute the migration script inside the container
         aws ecs execute-command \
           --cluster ${{ env.ECS_CLUSTER }} \
           --task $TASK_ARN \
           --container aixiv-backend \
           --interactive \
-          --command "alembic upgrade head" << /dev/null
+          --command "/bin/bash scripts/run_migrations.sh" << /dev/null
     
     - name: Get ALB DNS name
       id: alb-dns
