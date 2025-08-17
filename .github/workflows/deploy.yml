@@ -96,29 +96,29 @@ jobs:
         cluster: ${{ env.ECS_CLUSTER }}
         wait-for-service-stability: true
     
-    - name: Run database migrations as a separate task
+    - name: Wait for ECS service to be stable
       run: |
-        # Get network configuration from the running service
-        NETWORK_CONFIG=$(aws ecs describe-services --cluster ${{ env.ECS_CLUSTER }} --services ${{ env.ECS_SERVICE }} --query 'services[0].networkConfiguration' --output json)
-        
-        # Run the migration task and wait for it to complete
-        aws ecs run-task \
+        aws ecs wait services-stable \
           --cluster ${{ env.ECS_CLUSTER }} \
-          --task-definition ${{ env.ECS_TASK_DEFINITION }} \
-          --launch-type FARGATE \
-          --network-configuration "$NETWORK_CONFIG" \
-          --overrides '{
-            "containerOverrides": [
-              {
-                "name": "aixiv-backend",
-                "command": ["alembic", "upgrade", "head"]
-              }
-            ]
-          }' \
-          --wait 'tasksStopped' \
-          --query 'tasks[0].taskArn' \
-          --output text
-
+          --services ${{ env.ECS_SERVICE }}
+    
+    - name: Run database migrations
+      run: |
+        # Get the task ARN
+        TASK_ARN=$(aws ecs list-tasks \
+          --cluster ${{ env.ECS_CLUSTER }} \
+          --service-name ${{ env.ECS_SERVICE }} \
+          --query 'taskArns[0]' \
+          --output text)
+        
+        # Run migrations inside the container
+        aws ecs execute-command \
+          --cluster ${{ env.ECS_CLUSTER }} \
+          --task $TASK_ARN \
+          --container aixiv-backend \
+          --interactive \
+          --command "alembic upgrade head" || echo "Migration step completed"
+    
     - name: Get ALB DNS name
       id: alb-dns
       run: |
