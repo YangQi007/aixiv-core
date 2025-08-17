@@ -31,13 +31,19 @@ class SubmissionBase(SubmissionCore):
     citations: int = Field(0, ge=0)
 
 class SubmissionCreate(SubmissionCore):
-    uploaded_by: str = Field(..., max_length=64)
+    uploaded_by: str | None = None
     
     # Explicitly include new fields to ensure they're handled properly
     aixiv_id: Optional[str] = Field(None, max_length=50)
     doi: Optional[str] = Field(None, max_length=100)
     version: Optional[str] = Field("1.0", max_length=20)
     doc_type: str = Field(..., max_length=50)  # Document type (required from frontend)
+
+
+class SubmissionVersionCreate(SubmissionCore):
+    uploaded_by: str | None = None
+    s3_url: str
+
 
 class SubmissionDB(SubmissionBase):
     id: int

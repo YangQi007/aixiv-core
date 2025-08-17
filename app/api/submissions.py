@@ -12,9 +12,10 @@ from app.schemas import (
     SubmissionResponse, 
     UploadUrlRequest, 
     UploadUrlResponse,
-    SubmissionDB
+    SubmissionDB,
+    SubmissionVersionCreate
 )
-from app.crud import create_submission, get_submission, get_submissions
+from app.crud import create_submission, get_submission, get_submissions, create_submission_version
 from app.services.s3_service import s3_service
 
 router = APIRouter(prefix="/api", tags=["submissions"])
@@ -98,6 +99,30 @@ async def list_submissions(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error retrieving submissions: {str(e)}"
         )
+
+@router.post("/submissions/{aixiv_id}/versions", response_model=SubmissionDB, status_code=status.HTTP_201_CREATED)
+def create_new_version(
+    aixiv_id: str,
+    submission: SubmissionVersionCreate,
+    db: Session = Depends(get_db)
+):
+    """
+    Creates a new version for an existing submission.
+    """
+    try:
+        new_version = create_submission_version(db=db, submission=submission, aixiv_id=aixiv_id)
+        if new_version is None:
+            raise HTTPException(status_code=404, detail="Submission with given aixiv_id not found")
+        return new_version
+    except IntegrityError as e:
+        logging.error(f"Database integrity error on version creation: {e}")
+        db.rollback()
+        raise HTTPException(status_code=409, detail="A submission with this version may already exist.")
+    except Exception as e:
+        logging.error(f"An unexpected error occurred during version creation: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="An unexpected error occurred")
+
 
 @router.get("/submissions/{submission_id}", response_model=SubmissionDB)
 async def get_submission_by_id(
