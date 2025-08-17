@@ -116,6 +116,7 @@ jobs:
           --cluster ${{ env.ECS_CLUSTER }} \
           --task $TASK_ARN \
           --container aixiv-backend \
+          --non-interactive \
           --command "alembic upgrade head" || echo "Migration step completed"
     
     - name: Get ALB DNS name
