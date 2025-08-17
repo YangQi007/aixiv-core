@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 from typing import List
 import uuid
 from datetime import datetime
+from sqlalchemy.exc import IntegrityError
+import logging
 
 from app.database import get_db
 from app.schemas import (
@@ -51,27 +53,33 @@ async def submit_paper(
     """
     Submit a paper with metadata to the database
     """
-    try:
-        # Validate that the S3 URL exists (optional check)
-        # You might want to verify the file actually exists in S3
-        
-        # Create submission in database
-        db_submission = create_submission(db, submission)
-        
-        # Generate a submission ID for the response
-        submission_id = f"SUB-{datetime.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
-        
-        return SubmissionResponse(
-            success=True,
-            submission_id=submission_id,
-            message="Paper submitted successfully"
-        )
-        
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error submitting paper: {str(e)}"
-        )
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            new_submission = create_submission(db=db, submission=submission)
+            return SubmissionResponse(
+                success=True, 
+                submission_id=str(new_submission.id), 
+                message="Paper submitted successfully!"
+            )
+        except IntegrityError as e:
+            db.rollback() # Rollback the failed transaction
+            if "ix_submissions_aixiv_id" in str(e) and attempt < max_retries - 1:
+                logging.warning(f"Race condition for aixiv_id detected. Retrying... (Attempt {attempt + 1})")
+                continue # Retry the loop
+            else:
+                logging.error(f"Error submitting paper after retries: {e}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Error submitting paper: {e}"
+                )
+        except Exception as e:
+            db.rollback()
+            logging.error(f"An unexpected error occurred: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"An unexpected error occurred: {e}"
+            )
 
 @router.get("/submissions", response_model=List[SubmissionDB])
 async def list_submissions(

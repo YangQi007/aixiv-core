@@ -39,12 +39,11 @@ def sample_submission_data():
         "abstract": "Test abstract",
         "s3_url": "https://test-bucket.s3.amazonaws.com/test.pdf",
         "uploaded_by": "test-user",
-        # New required field
+        # Required field
         "doc_type": "paper",
-        # New optional fields
-        "aixiv_id": "AIXIV-2024-001",
-        "doi": "10.1000/test.2024.001",
-        "version": "1.0"
+        # Optional field
+        "doi": "10.1000/test.2024.001"
+        # Note: aixiv_id, version, and status are now server-generated
     }
 
 @pytest.fixture(autouse=True)
