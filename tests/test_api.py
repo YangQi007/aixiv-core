@@ -69,7 +69,13 @@ class TestSubmissionEndpoints:
             aixiv_id="AIXIV-2024-001",
             doi="10.1000/test.2024.001",
             version="1.0",
-            doc_type="paper"
+            doc_type="paper",
+            status="Under Review",
+            # Engagement metrics as integers
+            views=0,
+            downloads=0,
+            comments=0,
+            citations=0
         )
         
         response = client.post("/api/submit", json=sample_submission_data)
@@ -95,7 +101,7 @@ class TestSubmissionEndpoints:
         
         data = response.json()
         assert "detail" in data
-        assert "Error submitting paper" in data["detail"]
+        assert "An unexpected error occurred" in data["detail"]
 
     @patch('app.api.submissions.get_submissions')
     def test_get_submissions_success(self, mock_get_submissions, client):
@@ -120,6 +126,12 @@ class TestSubmissionEndpoints:
                 doi="10.1000/test.2024.001",
                 version="1.0",
                 doc_type="paper",
+                status="Under Review",
+                # Engagement metrics as integers
+                views=0,
+                downloads=0,
+                comments=0,
+                citations=0,
                 created_at=datetime.now(),
                 updated_at=datetime.now()
             ),
@@ -139,6 +151,12 @@ class TestSubmissionEndpoints:
                 doi="10.1000/test.2024.002",
                 version="1.0",
                 doc_type="preprint",
+                status="Under Review",
+                # Engagement metrics as integers
+                views=0,
+                downloads=0,
+                comments=0,
+                citations=0,
                 created_at=datetime.now(),
                 updated_at=datetime.now()
             )

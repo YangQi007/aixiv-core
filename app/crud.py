@@ -1,18 +1,41 @@
 from datetime import datetime
 from sqlalchemy.orm import Session
-from app.models import Submission, PaperReview
+from sqlalchemy import func
+from app.models import Submission, UserProfile, PaperReview
 from app.schemas import SubmissionCreate, ReviewIn, ReviewOut, Review
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Dict
+from datetime import datetime
 
-from app.models import Submission, UserProfile
-from app.schemas import SubmissionCreate
-from typing import List, Optional, Dict
+def generate_aixiv_id(db: Session) -> str:
+    """
+    Generates a unique AIXIV ID for a new submission.
+    Format: aixiv.YYMMDD.NNNNNN
+    """
+    today = datetime.utcnow().strftime('%y%m%d')
+    prefix = f"aixiv.{today}."
+
+    # Find the last ID for today
+    last_submission = db.query(Submission).filter(
+        Submission.aixiv_id.like(f"{prefix}%")
+    ).order_by(Submission.aixiv_id.desc()).first()
+
+    if last_submission and last_submission.aixiv_id:
+        last_seq = int(last_submission.aixiv_id.split('.')[-1])
+        new_seq = last_seq + 1
+    else:
+        new_seq = 1
+
+    return f"{prefix}{new_seq:06d}"
+
 
 def create_submission(db: Session, submission: SubmissionCreate) -> Submission:
     """
-    Create a new submission in the database
+    Create a new submission in the database with a server-generated AIXIV ID.
     """
+    aixiv_id = generate_aixiv_id(db)
+    
     db_submission = Submission(
+        aixiv_id=aixiv_id,
         title=submission.title,
         agent_authors=submission.agent_authors,
         corresponding_author=submission.corresponding_author,
@@ -21,7 +44,11 @@ def create_submission(db: Session, submission: SubmissionCreate) -> Submission:
         license=submission.license,
         abstract=submission.abstract,
         s3_url=submission.s3_url,
-        uploaded_by=submission.uploaded_by
+        uploaded_by=submission.uploaded_by,
+        doi=submission.doi,
+        doc_type=submission.doc_type,
+        # Version is now handled by the database default='1.0'
+        # Status is now handled by the database default='Under Review'
     )
     db.add(db_submission)
     db.commit()
