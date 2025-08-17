@@ -102,6 +102,23 @@ jobs:
           --cluster ${{ env.ECS_CLUSTER }} \
           --services ${{ env.ECS_SERVICE }}
     
+    - name: Run database migrations
+      run: |
+        # Get the task ARN
+        TASK_ARN=$(aws ecs list-tasks \
+          --cluster ${{ env.ECS_CLUSTER }} \
+          --service-name ${{ env.ECS_SERVICE }} \
+          --query 'taskArns[0]' \
+          --output text)
+        
+        # Run migrations with timeout to prevent hanging
+        timeout 300 aws ecs execute-command \
+          --cluster ${{ env.ECS_CLUSTER }} \
+          --task $TASK_ARN \
+          --container aixiv-backend \
+          --interactive \
+          --command "alembic upgrade head"
+    
     - name: Get ALB DNS name
       id: alb-dns
       run: |
