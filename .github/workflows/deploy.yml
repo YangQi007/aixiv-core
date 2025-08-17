@@ -111,12 +111,11 @@ jobs:
           --query 'taskArns[0]' \
           --output text)
         
-        # Run migrations inside the container
+        # Run migrations inside the container (non-interactive for CI/CD)
         aws ecs execute-command \
           --cluster ${{ env.ECS_CLUSTER }} \
           --task $TASK_ARN \
           --container aixiv-backend \
-          --interactive \
           --command "alembic upgrade head" || echo "Migration step completed"
     
     - name: Get ALB DNS name
