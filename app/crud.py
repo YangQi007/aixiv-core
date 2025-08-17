@@ -2,9 +2,10 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.models import Submission, UserProfile, PaperReview
-from app.schemas import SubmissionCreate, ReviewIn, ReviewOut, Review
+from app.schemas import SubmissionCreate, SubmissionVersionCreate, ReviewIn, ReviewOut, Review
 from typing import List, Optional, Any, Dict
 from datetime import datetime
+import logging
 
 def generate_aixiv_id(db: Session) -> str:
     """
@@ -54,6 +55,45 @@ def create_submission(db: Session, submission: SubmissionCreate) -> Submission:
     db.commit()
     db.refresh(db_submission)
     return db_submission
+
+
+def create_submission_version(db: Session, submission: SubmissionVersionCreate, aixiv_id: str):
+    # Find the latest submission by creation date to avoid string sorting issues with version numbers like '10.0' vs '2.0'
+    latest_submission = db.query(Submission).filter(Submission.aixiv_id == aixiv_id).order_by(Submission.created_at.desc()).first()
+
+    if not latest_submission:
+        return None
+
+    # Increment version: 1.0 -> 1.1, ..., 1.9 -> 2.0
+    try:
+        major_str, minor_str = latest_submission.version.split('.')
+        major = int(major_str)
+        minor = int(minor_str)
+
+        minor += 1
+
+        if minor >= 10:
+            major += 1
+            minor = 0
+        
+        new_version_str = f"{major}.{minor}"
+    except (ValueError, IndexError) as e:
+        logging.error(f"Could not parse version '{latest_submission.version}' for aixiv_id '{aixiv_id}'. Error: {e}")
+        # A malformed version is a data integrity issue that should not be ignored.
+        raise ValueError(f"Invalid version format for submission: {latest_submission.version}")
+
+
+    db_submission = Submission(
+        **submission.dict(),
+        aixiv_id=aixiv_id,
+        version=new_version_str,
+        status="Under Review",  # Reset status for new version
+    )
+    db.add(db_submission)
+    db.commit()
+    db.refresh(db_submission)
+    return db_submission
+
 
 def get_submission(db: Session, submission_id: int) -> Optional[Submission]:
     """

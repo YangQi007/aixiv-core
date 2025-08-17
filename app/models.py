@@ -1,10 +1,13 @@
-from sqlalchemy import Column, Integer, String, Text, ARRAY, DateTime, BigInteger, Index, text
+from sqlalchemy import Column, Integer, String, Text, ARRAY, DateTime, BigInteger, Index, text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.sql import func
 from app.database import Base
 
 class Submission(Base):
     __tablename__ = "submissions"
+    __table_args__ = (
+        UniqueConstraint('aixiv_id', 'version', name='_aixiv_id_version_uc'),
+    )
     
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String(220), nullable=False)
@@ -18,7 +21,7 @@ class Submission(Base):
     uploaded_by = Column(String(64), nullable=False)  # Assuming this references a users table
     
     # New fields
-    aixiv_id = Column(String(50), unique=True, index=True)  # AIXIV identifier
+    aixiv_id = Column(String(50), index=True)  # AIXIV identifier (no longer unique by itself)
     doi = Column(String(100), unique=True, index=True)      # Digital Object Identifier
     version = Column(String(20), default="1.0")             # Paper version
     doc_type = Column(String(50), nullable=False)  # Document type (required from frontend)
