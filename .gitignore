@@ -51,3 +51,6 @@ scripts/deploy.log
 # Ignore secrets
 secrets.* .env
 *.tfvars
+
+# Ignore idea
+.idea/
