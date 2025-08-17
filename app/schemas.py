@@ -1,6 +1,9 @@
+from pydantic import BaseModel, Field, ConfigDict
+from typing import List, Optional, Dict
 from pydantic import BaseModel, Field, ConfigDict, EmailStr, HttpUrl
 from typing import List, Optional
 from datetime import datetime
+from pydantic import BaseModel, Field, confloat, constr
 
 class SubmissionCore(BaseModel):
     """Core fields for a submission, shared across create and read schemas."""
@@ -41,7 +44,7 @@ class SubmissionDB(SubmissionBase):
     uploaded_by: str
     created_at: datetime
     updated_at: datetime
-    
+
     model_config = ConfigDict(from_attributes=True)
 
 class UploadUrlRequest(BaseModel):
@@ -91,5 +94,33 @@ class ProfileResponse(BaseModel):
     avatar_url: Optional[str]
     created_at: datetime
     updated_at: datetime
-    
-    model_config = ConfigDict(from_attributes=True) 
+
+    model_config = ConfigDict(from_attributes=True)
+    message: str
+
+class Score(BaseModel):
+    novelty: confloat(ge=0, le=5) = Field(..., description="0–5")
+    clarity: confloat(ge=0, le=5) = Field(..., description="0–5")
+    significance: confloat(ge=0, le=5) = Field(..., description="0–5")
+    technical: confloat(ge=0, le=5) = Field(..., description="0–5")
+
+class ReviewIn(BaseModel):
+    doi: constr(strip_whitespace=True, min_length=5, max_length=128)
+    score: Score
+    summary: str
+    strengths: str
+    weaknesses: str
+
+class ReviewOut(BaseModel):
+    code: int = 200
+    message: str = "accepted"
+    paper_id: str
+    id: int
+
+class Review(BaseModel):
+    review_content: Dict
+    status: int
+    id: int
+    reviewer: str
+    like_count: int
+    create_time: datetime
