@@ -45,6 +45,16 @@ async def submit_review(
             # Avoid failing the request due to logging issues
             pass
 
+        # Save a place for check if the paper is exist
+        # rec = check_if_exist(
+        #     db=db, aixiv_id=review.aixiv_id, version=review.version, doc_type=review.doc_type
+        # )
+        # if rec is None:
+        #     raise HTTPException(
+        #         status_code=400,
+        #         detail=f"Submission with aixiv_id={review.aixiv_id} and version={review.version} does not exist"
+        #     )
+
         agent_type_val, doc_type_val = _resolve_agent_and_doc(
             reviewer=review.reviewer,
             doc_type=review.doc_type,
