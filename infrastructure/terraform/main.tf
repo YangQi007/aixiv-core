@@ -260,7 +260,7 @@ resource "aws_security_group" "ecs_tasks" {
 resource "aws_rds_cluster" "aixiv" {
   cluster_identifier      = "aixiv-db"
   engine                  = "aurora-postgresql"
-  engine_version          = "15.4"
+  engine_version          = "15.10"
   database_name           = var.db_name
   master_username         = var.db_username
   master_password         = var.db_password
@@ -356,13 +356,81 @@ resource "aws_iam_role_policy" "ecs_task_role_policy" {
           "s3:PutObject",
           "s3:DeleteObject"
         ]
-        Resource = "${var.s3_bucket_arn}/*"
+        Resource = "${aws_s3_bucket.aixiv_papers.arn}/*"
       }
     ]
   })
 }
 
 # SSM Parameters removed - using environment variables instead
+
+# S3 Bucket for storing papers
+resource "aws_s3_bucket" "aixiv_papers" {
+  bucket = var.s3_bucket_name
+
+  tags = var.common_tags
+}
+
+# S3 Bucket versioning
+resource "aws_s3_bucket_versioning" "aixiv_papers_versioning" {
+  bucket = aws_s3_bucket.aixiv_papers.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+# S3 Bucket server-side encryption
+resource "aws_s3_bucket_server_side_encryption_configuration" "aixiv_papers_encryption" {
+  bucket = aws_s3_bucket.aixiv_papers.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+# Unblock public access (required for public bucket policy)
+resource "aws_s3_bucket_public_access_block" "aixiv_papers_pab" {
+  bucket = aws_s3_bucket.aixiv_papers.id
+
+  block_public_acls       = false
+  block_public_policy     = false
+  ignore_public_acls      = false
+  restrict_public_buckets = false
+}
+
+# Bucket policy to allow public read access
+resource "aws_s3_bucket_policy" "aixiv_papers_policy" {
+  bucket = aws_s3_bucket.aixiv_papers.id
+  depends_on = [aws_s3_bucket_public_access_block.aixiv_papers_pab]
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "PublicReadGetObject"
+        Effect    = "Allow"
+        Principal = "*"
+        Action    = "s3:GetObject"
+        Resource  = "${aws_s3_bucket.aixiv_papers.arn}/*"
+      }
+    ]
+  })
+}
+
+# CORS configuration for S3 bucket (allows web access)
+resource "aws_s3_bucket_cors_configuration" "aixiv_papers_cors" {
+  bucket = aws_s3_bucket.aixiv_papers.id
+
+  cors_rule {
+    allowed_headers = ["*"]
+    allowed_methods = ["GET", "PUT", "POST"]
+    allowed_origins = ["*"]
+    expose_headers  = ["ETag"]
+    max_age_seconds = 3000
+  }
+}
 
 # Outputs
 output "alb_dns_name" {
@@ -378,4 +446,14 @@ output "ecr_repository_url" {
 output "rds_endpoint" {
   description = "The endpoint of the RDS cluster"
   value       = aws_rds_cluster.aixiv.endpoint
+}
+
+output "s3_bucket_domain_name" {
+  description = "The domain name of the S3 bucket for public access"
+  value       = aws_s3_bucket.aixiv_papers.bucket_domain_name
+}
+
+output "s3_bucket_regional_domain_name" {
+  description = "The regional domain name of the S3 bucket"
+  value       = aws_s3_bucket.aixiv_papers.bucket_regional_domain_name
 } 
