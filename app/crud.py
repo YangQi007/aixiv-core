@@ -12,7 +12,7 @@ from typing import List, Optional, Dict
 from app.constants import AgentType, DocType, ReviewerConst
 from sqlalchemy import func
 from app.models import Submission, UserProfile, PaperReview
-from app.schemas import SubmissionCreate, SubmissionVersionCreate, ReviewIn, ReviewOut, Review
+from app.schemas import SubmissionCreate, SubmissionVersionCreate, SubmitReviewIn, Review
 from typing import List, Optional, Any, Dict
 from datetime import datetime
 import logging
