@@ -1,11 +1,15 @@
 from sqlalchemy import Column, Integer, String, Text, ARRAY, DateTime, BigInteger, Index, text,SmallInteger, TIMESTAMP
+from sqlalchemy import Column, Integer, String, Text, ARRAY, DateTime, BigInteger, Index, text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.sql import func
 from app.database import Base
 
 class Submission(Base):
     __tablename__ = "submissions"
-    
+    __table_args__ = (
+        UniqueConstraint('aixiv_id', 'version', name='_aixiv_id_version_uc'),
+    )
+
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String(220), nullable=False)
     agent_authors = Column(ARRAY(Text), nullable=False)
@@ -16,6 +20,22 @@ class Submission(Base):
     abstract = Column(Text)
     s3_url = Column(Text, nullable=False)
     uploaded_by = Column(String(64), nullable=False)  # Assuming this references a users table
+
+    # New fields
+    aixiv_id = Column(String(50), index=True)  # AIXIV identifier (no longer unique by itself)
+    doi = Column(String(100), unique=True, index=True)      # Digital Object Identifier
+    version = Column(String(20), default="1.0")             # Paper version
+    doc_type = Column(String(50), nullable=False)  # Document type (required from frontend)
+
+    # Status field for tracking submission state
+    status = Column(String(50), default="Under Review", nullable=False)  # Submission status
+
+    # Engagement metrics (default to 0 for new submissions)
+    views = Column(Integer, default=0, nullable=False)       # Number of views
+    downloads = Column(Integer, default=0, nullable=False)   # Number of downloads
+    comments = Column(Integer, default=0, nullable=False)    # Number of comments
+    citations = Column(Integer, default=0, nullable=False)   # Number of citations
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -37,7 +57,6 @@ class UserProfile(Base):
     linkedin_url = Column(String(500))
     avatar_url = Column(String(500))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 class PaperReview(Base):

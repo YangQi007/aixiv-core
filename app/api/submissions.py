@@ -1,12 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 import uuid
 from datetime import datetime
-import tempfile
-import requests as pyrequests
-import fitz  # PyMuPDF for PDF extraction
-import re
+from sqlalchemy.exc import IntegrityError
+import logging
 
 from app.database import get_db
 from app.schemas import (
@@ -14,13 +12,11 @@ from app.schemas import (
     SubmissionResponse, 
     UploadUrlRequest, 
     UploadUrlResponse,
-    SubmissionDB
+    SubmissionDB,
+    SubmissionVersionCreate
 )
-from app.crud import create_submission, get_submission, get_submissions
+from app.crud import create_submission, get_submission, get_submissions, create_submission_version
 from app.services.s3_service import s3_service
-from app.config import settings
-import boto3
-from urllib.parse import urlparse
 
 router = APIRouter(prefix="/api", tags=["submissions"])
 
@@ -38,11 +34,13 @@ async def get_upload_url(request: UploadUrlRequest):
         result = s3_service.generate_upload_url(request.filename)
         return UploadUrlResponse(**result)
     except ValueError as e:
+        # Validation errors should return 400, not 500
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
     except Exception as e:
+        # Only unexpected errors should return 500
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error generating upload URL: {str(e)}"
@@ -56,85 +54,33 @@ async def submit_paper(
     """
     Submit a paper with metadata to the database
     """
-    try:
-        # Validate that the S3 URL exists (optional check)
-        # You might want to verify the file actually exists in S3
-        
-        # Create submission in database
-        db_submission = create_submission(db, submission)
-        
-        # Generate a submission ID for the response
-        submission_id = f"SUB-{datetime.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
-        
-        return SubmissionResponse(
-            success=True,
-            submission_id=submission_id,
-            message="Paper submitted successfully"
-        )
-        
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error submitting paper: {str(e)}"
-        )
-
-@router.post("/extract-abstract")
-async def extract_abstract(request: Request):
-    data = await request.json()
-    s3_url = data.get("s3_url")
-    if not s3_url:
-        return {"abstract": "No S3 URL provided."}
-
-    # Parse S3 URL
-    parsed = urlparse(s3_url)
-    bucket = parsed.netloc.split(".")[0] if ".s3" in parsed.netloc else parsed.netloc
-    key = parsed.path.lstrip("/")
-
-    # Download the file from S3 using boto3
-    s3 = boto3.client(
-        's3',
-        aws_access_key_id=settings.aws_access_key_id,
-        aws_secret_access_key=settings.aws_secret_access_key,
-        region_name=settings.aws_region
-    )
-    try:
-        with tempfile.NamedTemporaryFile(delete=False) as tmp:
-            s3.download_fileobj(bucket, key, tmp)
-            tmp_path = tmp.name
-    except Exception as e:
-        return {"abstract": f"Failed to download file from S3: {str(e)}"}
-
-    # Try PDF extraction first
-    abstract = None
-    try:
-        doc = fitz.open(tmp_path)
-        text = "\n".join(page.get_text() for page in doc)
-        # Stricter regex: stop at 'Keywords', double newline, or common section headings
-        match = re.search(
-            r'(?i)abstract\s*[:\n\r]+([\s\S]+?)(?=\n{2,}|(\n\s*(\d+\.\s*)?(keywords|introduction|background|methods|materials|results|discussion|conclusion|references|\\section))|$)',
-            text
-        )
-        if match:
-            abstract = match.group(1).strip()
-        doc.close()
-    except Exception:
-        pass
-
-    # If not PDF or no abstract found, try LaTeX
-    if not abstract:
+    max_retries = 3
+    for attempt in range(max_retries):
         try:
-            with open(tmp_path, 'r', encoding='utf-8', errors='ignore') as f:
-                content = f.read()
-            match = re.search(r'\\begin\{abstract\}(.+?)\\end\{abstract\}', content, re.DOTALL)
-            if match:
-                abstract = match.group(1).strip()
-        except Exception:
-            pass
-
-    if not abstract:
-        abstract = "Could not extract abstract from the uploaded file."
-
-    return {"abstract": abstract}
+            new_submission = create_submission(db=db, submission=submission)
+            return SubmissionResponse(
+                success=True, 
+                submission_id=str(new_submission.id), 
+                message="Paper submitted successfully!"
+            )
+        except IntegrityError as e:
+            db.rollback() # Rollback the failed transaction
+            if "ix_submissions_aixiv_id" in str(e) and attempt < max_retries - 1:
+                logging.warning(f"Race condition for aixiv_id detected. Retrying... (Attempt {attempt + 1})")
+                continue # Retry the loop
+            else:
+                logging.error(f"Error submitting paper after retries: {e}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Error submitting paper: {e}"
+                )
+        except Exception as e:
+            db.rollback()
+            logging.error(f"An unexpected error occurred: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"An unexpected error occurred: {e}"
+            )
 
 @router.get("/submissions", response_model=List[SubmissionDB])
 async def list_submissions(
@@ -145,8 +91,38 @@ async def list_submissions(
     """
     Get all submissions with pagination
     """
-    submissions = get_submissions(db, skip=skip, limit=limit)
-    return submissions
+    try:
+        submissions = get_submissions(db, skip=skip, limit=limit)
+        return submissions
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving submissions: {str(e)}"
+        )
+
+@router.post("/submissions/{aixiv_id}/versions", response_model=SubmissionDB, status_code=status.HTTP_201_CREATED)
+def create_new_version(
+    aixiv_id: str,
+    submission: SubmissionVersionCreate,
+    db: Session = Depends(get_db)
+):
+    """
+    Creates a new version for an existing submission.
+    """
+    try:
+        new_version = create_submission_version(db=db, submission=submission, aixiv_id=aixiv_id)
+        if new_version is None:
+            raise HTTPException(status_code=404, detail="Submission with given aixiv_id not found")
+        return new_version
+    except IntegrityError as e:
+        logging.error(f"Database integrity error on version creation: {e}")
+        db.rollback()
+        raise HTTPException(status_code=409, detail="A submission with this version may already exist.")
+    except Exception as e:
+        logging.error(f"An unexpected error occurred during version creation: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="An unexpected error occurred")
+
 
 @router.get("/submissions/{submission_id}", response_model=SubmissionDB)
 async def get_submission_by_id(

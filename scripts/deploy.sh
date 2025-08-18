@@ -107,19 +107,53 @@ wait_for_stability() {
 run_migrations() {
     log_info "Running database migrations..."
     
-    # Get subnet and security group IDs (you'll need to update these)
-    SUBNET_IDS="subnet-12345678,subnet-87654321"
-    SECURITY_GROUP_IDS="sg-12345678"
+    # Get subnet and security group IDs dynamically from infrastructure
+    log_info "Getting network configuration from infrastructure..."
+    
+    # Try to get subnet IDs from VPC
+    SUBNET_IDS=$(aws ec2 describe-subnets \
+        --filters "Name=tag:Name,Values=*private*" \
+        --query 'Subnets[*].SubnetId' \
+        --output text | tr '\t' ',')
+    
+    # Try to get security group IDs
+    SECURITY_GROUP_IDS=$(aws ec2 describe-security-groups \
+        --filters "Name=group-name,Values=*aixiv*" \
+        --query 'SecurityGroups[*].GroupId' \
+        --output text | tr '\t' ',')
+    
+    if [ -z "$SUBNET_IDS" ] || [ -z "$SECURITY_GROUP_IDS" ]; then
+        log_warn "Could not determine network configuration automatically."
+        log_warn "Skipping database migrations. Run them manually if needed."
+        log_warn "You can run migrations manually with:"
+        log_warn "  docker compose exec api alembic upgrade head"
+        return 0
+    fi
+    
+    log_info "Using subnets: $SUBNET_IDS"
+    log_info "Using security groups: $SECURITY_GROUP_IDS"
     
     # Run migration task
+    log_info "Starting migration task..."
     aws ecs run-task \
         --cluster $ECS_CLUSTER \
         --task-definition $ECS_TASK_DEFINITION \
         --launch-type FARGATE \
         --network-configuration "awsvpcConfiguration={subnets=[$SUBNET_IDS],securityGroups=[$SECURITY_GROUP_IDS],assignPublicIp=ENABLED}" \
-        --overrides '{"containerOverrides":[{"name":"aixiv-backend","command":["alembic","upgrade","head"]}]}'
+        --overrides '{"containerOverrides":[{"name":"aixiv-backend","command":["alembic","upgrade","head"]}]}' \
+        --query 'tasks[0].taskArn' \
+        --output text > /tmp/migration-task-arn.txt
     
-    log_info "Database migrations completed!"
+    if [ $? -eq 0 ]; then
+        MIGRATION_TASK_ARN=$(cat /tmp/migration-task-arn.txt)
+        log_info "Migration task started: $MIGRATION_TASK_ARN"
+        log_info "Database migrations completed!"
+    else
+        log_warn "Failed to start migration task. Run migrations manually if needed."
+    fi
+    
+    # Cleanup
+    rm -f /tmp/migration-task-arn.txt
 }
 
 # Get service URL
@@ -137,17 +171,42 @@ get_service_url() {
 deploy() {
     log_info "Starting deployment..."
     
+    # Check prerequisites
     check_aws_cli
     check_docker
     check_environment
     
-    build_and_push_image
-    update_ecs_service
-    wait_for_stability
+    # Build and push image
+    log_info "Step 1/5: Building and pushing Docker image..."
+    if ! build_and_push_image; then
+        log_error "Failed to build and push image. Aborting deployment."
+        exit 1
+    fi
+    
+    # Update ECS service
+    log_info "Step 2/5: Updating ECS service..."
+    if ! update_ecs_service; then
+        log_error "Failed to update ECS service. Aborting deployment."
+        exit 1
+    fi
+    
+    # Wait for stability
+    log_info "Step 3/5: Waiting for service stability..."
+    if ! wait_for_stability; then
+        log_error "Service failed to stabilize. Consider rolling back."
+        exit 1
+    fi
+    
+    # Run migrations (optional - won't fail deployment)
+    log_info "Step 4/5: Running database migrations..."
     run_migrations
+    
+    # Get service URL
+    log_info "Step 5/5: Getting service information..."
     get_service_url
     
-    log_info "Deployment completed successfully!"
+    log_info "🎉 Deployment completed successfully!"
+    log_info "Your application is now live!"
 }
 
 # Rollback function

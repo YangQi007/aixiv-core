@@ -29,13 +29,13 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        pip install pytest pytest-asyncio httpx
+        pip install pytest pytest-cov httpx
     
     - name: Run tests
       env:
         TESTING: "true"
       run: |
-        python -m pytest tests/test_simple.py -v
+        python -m pytest tests/ -v --tb=short
     
     # - name: Lint code
     #   run: |
@@ -95,6 +95,29 @@ jobs:
         service: ${{ env.ECS_SERVICE }}
         cluster: ${{ env.ECS_CLUSTER }}
         wait-for-service-stability: true
+    
+    - name: Wait for ECS service to be stable
+      run: |
+        aws ecs wait services-stable \
+          --cluster ${{ env.ECS_CLUSTER }} \
+          --services ${{ env.ECS_SERVICE }}
+    
+    - name: Run database migrations
+      run: |
+        # Get the task ARN
+        TASK_ARN=$(aws ecs list-tasks \
+          --cluster ${{ env.ECS_CLUSTER }} \
+          --service-name ${{ env.ECS_SERVICE }} \
+          --query 'taskArns[0]' \
+          --output text)
+        
+        # Run migrations using script to create a fake TTY
+        script -q -c "aws ecs execute-command \
+          --cluster ${{ env.ECS_CLUSTER }} \
+          --task $TASK_ARN \
+          --container aixiv-backend \
+          --interactive \
+          --command 'alembic upgrade head'" /dev/null
     
     - name: Get ALB DNS name
       id: alb-dns

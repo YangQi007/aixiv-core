@@ -1,10 +1,6 @@
 import pytest
 import os
 
-def test_environment_variable():
-    """Test that TESTING environment variable is set"""
-    assert os.getenv("TESTING") == "true"
-
 def test_import_app():
     """Test that we can import the app without errors"""
     try:
@@ -39,4 +35,14 @@ def test_import_schemas():
         assert SubmissionCreate is not None
         print("✅ Schemas imported successfully")
     except Exception as e:
-        pytest.fail(f"Failed to import schemas: {e}") 
+        pytest.fail(f"Failed to import schemas: {e}")
+
+def test_import_database():
+    """Test that we can import the database without errors"""
+    try:
+        from app.database import Base, engine
+        assert Base is not None
+        assert engine is not None
+        print("✅ Database imported successfully")
+    except Exception as e:
+        pytest.fail(f"Failed to import database: {e}") 

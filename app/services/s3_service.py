@@ -32,14 +32,14 @@ class S3Service:
         """
         Generate a pre-signed URL for uploading a file to S3
         """
+        # Generate unique file key with date-based organization
+        file_extension = self._get_file_extension(filename)
+        
+        # Validate file extension
+        if file_extension not in ['pdf', 'tex', 'latex']:
+            raise ValueError("Only PDF and LaTeX files (.pdf, .tex, .latex) are supported")
+        
         try:
-            # Generate unique file key with date-based organization
-            file_extension = self._get_file_extension(filename)
-            
-            # Validate file extension
-            if file_extension not in ['pdf', 'tex', 'latex']:
-                raise ValueError("Only PDF and LaTeX files (.pdf, .tex, .latex) are supported")
-            
             file_uuid = str(uuid.uuid4())
             # Sanitize the original filename to avoid S3 issues
             safe_filename = os.path.basename(filename).replace(" ", "_")

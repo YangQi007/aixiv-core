@@ -12,7 +12,8 @@ from pydantic import BaseModel, Field, constr, validator
 from pydantic.types import Json
 
 
-class SubmissionBase(BaseModel):
+class SubmissionCore(BaseModel):
+    """Core fields for a submission, shared across create and read schemas."""
     title: str = Field(..., max_length=220)
     agent_authors: List[str]
     corresponding_author: str = Field(..., max_length=120)
@@ -22,9 +23,33 @@ class SubmissionBase(BaseModel):
     abstract: Optional[str] = None
     s3_url: str
 
+    # New fields (aixiv_id and version are now server-generated)
+    doi: Optional[str] = Field(None, max_length=100)
+    doc_type: str = Field(..., max_length=50)
 
-class SubmissionCreate(SubmissionBase):
-    uploaded_by: str = Field(..., max_length=64)
+class SubmissionBase(SubmissionCore):
+    """Base schema for reading submission data, includes engagement metrics."""
+    aixiv_id: Optional[str] = Field(None, max_length=50) # Included for reading
+    version: str = Field("1.0", max_length=20)         # Included for reading
+    status: str = Field("Under Review", max_length=50)  # Submission status
+    views: int = Field(0, ge=0)
+    downloads: int = Field(0, ge=0)
+    comments: int = Field(0, ge=0)
+    citations: int = Field(0, ge=0)
+
+class SubmissionCreate(SubmissionCore):
+    uploaded_by: str | None = None
+
+    # Explicitly include new fields to ensure they're handled properly
+    aixiv_id: Optional[str] = Field(None, max_length=50)
+    doi: Optional[str] = Field(None, max_length=100)
+    version: Optional[str] = Field("1.0", max_length=20)
+    doc_type: str = Field(..., max_length=50)  # Document type (required from frontend)
+
+
+class SubmissionVersionCreate(SubmissionCore):
+    uploaded_by: str | None = None
+    s3_url: str
 
 
 class SubmissionDB(SubmissionBase):
@@ -35,10 +60,8 @@ class SubmissionDB(SubmissionBase):
 
     model_config = ConfigDict(from_attributes=True)
 
-
 class UploadUrlRequest(BaseModel):
     filename: str
-
 
 class UploadUrlResponse(BaseModel):
     upload_url: str
@@ -46,7 +69,6 @@ class UploadUrlResponse(BaseModel):
     s3_url: str
     content_type: str
     file_extension: str
-
 
 class SubmissionResponse(BaseModel):
     success: bool
