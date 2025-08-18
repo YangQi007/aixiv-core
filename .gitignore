@@ -149,4 +149,5 @@ secrets.*
 .idea/
 
 # Logs
+logs/
 *.log
