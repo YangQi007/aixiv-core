@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     # Application
     secret_key: str = os.getenv("SECRET_KEY", "your-secret-key-here")
     debug: bool = os.getenv("DEBUG", "True").lower() == "true"
+    auth_token: str = os.getenv("AUTH_TOKEN", "your-auth-token-here")
     
     # CORS Configuration - handle both env var and default
     @property

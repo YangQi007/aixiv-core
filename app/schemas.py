@@ -1,9 +1,16 @@
-from pydantic import BaseModel, Field, ConfigDict
+import json
+import re
+
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 from typing import List, Optional, Dict
 from pydantic import BaseModel, Field, ConfigDict, EmailStr, HttpUrl
 from typing import List, Optional
 from datetime import datetime
 from pydantic import BaseModel, Field, confloat, constr
+from typing import Optional, Literal
+from pydantic import BaseModel, Field, constr, validator
+from pydantic.types import Json
+
 
 class SubmissionCore(BaseModel):
     """Core fields for a submission, shared across create and read schemas."""
@@ -15,7 +22,7 @@ class SubmissionCore(BaseModel):
     license: str = Field(..., max_length=50)
     abstract: Optional[str] = None
     s3_url: str
-    
+
     # New fields (aixiv_id and version are now server-generated)
     doi: Optional[str] = Field(None, max_length=100)
     doc_type: str = Field(..., max_length=50)
@@ -32,7 +39,7 @@ class SubmissionBase(SubmissionCore):
 
 class SubmissionCreate(SubmissionCore):
     uploaded_by: str | None = None
-    
+
     # Explicitly include new fields to ensure they're handled properly
     aixiv_id: Optional[str] = Field(None, max_length=50)
     doi: Optional[str] = Field(None, max_length=100)
@@ -104,29 +111,80 @@ class ProfileResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     message: str
 
-class Score(BaseModel):
-    novelty: confloat(ge=0, le=5) = Field(..., description="0–5")
-    clarity: confloat(ge=0, le=5) = Field(..., description="0–5")
-    significance: confloat(ge=0, le=5) = Field(..., description="0–5")
-    technical: confloat(ge=0, le=5) = Field(..., description="0–5")
 
-class ReviewIn(BaseModel):
-    doi: constr(strip_whitespace=True, min_length=5, max_length=128)
-    score: Score
-    summary: str
-    strengths: str
-    weaknesses: str
+class SubmitReviewIn(BaseModel):
+    code: int
+    aixiv_id: constr(strip_whitespace=True, min_length=5, max_length=128)
+    version: constr(strip_whitespace=True, min_length=1, max_length=45)
+    review_results: dict
+    doc_type: Literal["proposal", "paper"]
+    reviewer: Literal["agent", "human"]
+    token: Optional[str] = None
 
-class ReviewOut(BaseModel):
-    code: int = 200
-    message: str = "accepted"
-    paper_id: str
+    @field_validator("review_results", mode="before")
+    def validate_json(cls, v):
+        if isinstance(v, dict):
+            return v
+        if isinstance(v, str):
+            try:
+                parsed = json.loads(v)
+            except Exception:
+                raise ValueError("review_results must be a valid JSON string")
+            if not isinstance(parsed, dict):
+                raise ValueError("review_results must be a JSON object")
+            return parsed
+        raise ValueError("review_results must be a dict or JSON string")
+
+    @field_validator("aixiv_id", "version", "doc_type", "reviewer", mode="before")
+    def lowercase_fields(cls, v):
+        if isinstance(v, str):
+            return v.lower()
+        return v
+
+    @field_validator("aixiv_id")
+    def validate_aixiv_id(cls, v: str):
+        pattern = r"^aixiv\.(\d{6})\.(\d{5,6})$"
+        match = re.match(pattern, v)
+        if not match:
+            raise ValueError("aixiv_id must match the format aiXiv.YYMMDD.xxxxx (e.g. aiXiv.250812.000001)")
+
+        date_part = match.group(1)
+        try:
+            datetime.strptime(date_part, "%y%m%d")
+        except ValueError:
+            raise ValueError(f"Invalid date in aixiv_id: {date_part} is not a real date (YYMMDD)")
+
+        return v
+
+
+class SubmitReviewOut(BaseModel):
+    code: int
+    aixiv_id: str
+    version: str
     id: int
+
 
 class Review(BaseModel):
-    review_content: Dict
-    status: int
-    id: int
-    reviewer: str
-    like_count: int
+    review_results: Dict
+    version: str
+    aixiv_id: str
     create_time: datetime
+    reviewer: str
+
+
+class GetReviewIn(BaseModel):
+    aixiv_id: str
+    version: str
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+
+    @field_validator("aixiv_id", "version", mode="before")
+    def lowercase_fields(cls, v):
+        if isinstance(v, str):
+            return v.lower()
+        return v
+
+
+class GetReviewOut(BaseModel):
+    review_list: List[Review]
+    code: int
