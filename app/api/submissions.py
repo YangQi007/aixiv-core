@@ -15,7 +15,7 @@ from app.schemas import (
     SubmissionDB,
     SubmissionVersionCreate
 )
-from app.crud import create_submission, get_submission, get_submissions, create_submission_version
+from app.crud import create_submission, get_submission, get_submissions, create_submission_version, get_submissions_by_user
 from app.services.s3_service import s3_service
 
 router = APIRouter(prefix="/api", tags=["submissions"])
@@ -84,12 +84,31 @@ async def submit_paper(
 
 @router.get("/submissions", response_model=List[SubmissionDB])
 async def list_submissions(
+    user_id: str,  # Add user_id parameter
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db)
 ):
     """
-    Get all submissions with pagination
+    Get submissions by user ID with pagination (for user workspace)
+    """
+    try:
+        submissions = get_submissions_by_user(db, uploaded_by=user_id, skip=skip, limit=limit)
+        return submissions
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving submissions: {str(e)}"
+        )
+
+@router.get("/submissions/public", response_model=List[SubmissionDB])
+async def list_public_submissions(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db)
+):
+    """
+    Get all submissions with pagination (for public exploration)
     """
     try:
         submissions = get_submissions(db, skip=skip, limit=limit)
