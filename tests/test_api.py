@@ -1,5 +1,6 @@
 import pytest
 from unittest.mock import Mock, patch
+from datetime import datetime
 
 class TestHealthEndpoints:
     """Test health-related endpoints"""
@@ -103,21 +104,19 @@ class TestSubmissionEndpoints:
         assert "detail" in data
         assert "An unexpected error occurred" in data["detail"]
 
-    @patch('app.api.submissions.get_submissions')
-    def test_get_submissions_success(self, mock_get_submissions, client):
-        """Test getting submissions with mocked database"""
-        # Mock successful database operation with proper data structure
-        from datetime import datetime
-        
+    @patch('app.api.submissions.get_submissions_by_user')
+    def test_get_submissions_success(self, mock_get_submissions_by_user, client):
+        """Test getting submissions successfully"""
+        # Mock successful response with all new fields as integers
         mock_submissions = [
             Mock(
                 id=1, 
-                title="Paper 1", 
-                abstract="Abstract 1",
+                title="Test Paper 1", 
+                abstract="Test abstract 1",
                 agent_authors=["Author 1", "Author 2"],
                 corresponding_author="Author 1",
-                category=["Computer Science"],
-                keywords=["test", "mock"],
+                category=["Computer Science", "AI"],
+                keywords=["test", "paper"],
                 license="CC-BY-4.0",
                 s3_url="https://example.com/paper1.pdf",
                 uploaded_by="user1",
@@ -126,12 +125,12 @@ class TestSubmissionEndpoints:
                 doi="10.1000/test.2024.001",
                 version="1.0",
                 doc_type="paper",
-                status="Under Review",
+                status="published",
                 # Engagement metrics as integers
-                views=0,
-                downloads=0,
-                comments=0,
-                citations=0,
+                views=150,
+                downloads=50,
+                comments=5,
+                citations=10,
                 created_at=datetime.now(),
                 updated_at=datetime.now()
             ),
@@ -145,7 +144,7 @@ class TestSubmissionEndpoints:
                 keywords=["ai", "ml"],
                 license="CC-BY-4.0",
                 s3_url="https://example.com/paper2.pdf",
-                uploaded_by="user2",
+                uploaded_by="user1",  # Same user as the test user
                 # New fields
                 aixiv_id="AIXIV-2024-002",
                 doi="10.1000/test.2024.002",
@@ -161,23 +160,86 @@ class TestSubmissionEndpoints:
                 updated_at=datetime.now()
             )
         ]
-        mock_get_submissions.return_value = mock_submissions
+        mock_get_submissions_by_user.return_value = mock_submissions
         
-        response = client.get("/api/submissions")
+        response = client.get("/api/submissions?user_id=test_user_123")
         assert response.status_code == 200
         
         data = response.json()
         assert isinstance(data, list)
         assert len(data) == 2
 
-    @patch('app.api.submissions.get_submissions')
-    def test_get_submissions_database_error(self, mock_get_submissions, client):
+    @patch('app.api.submissions.get_submissions_by_user')
+    def test_get_submissions_database_error(self, mock_get_submissions_by_user, client):
         """Test getting submissions when database fails"""
         # Mock database error
-        mock_get_submissions.side_effect = Exception("Database connection failed")
+        mock_get_submissions_by_user.side_effect = Exception("Database connection failed")
         
-        response = client.get("/api/submissions")
+        response = client.get("/api/submissions?user_id=test_user_123")
         assert response.status_code == 500
+
+    @patch('app.api.submissions.get_submissions')
+    def test_get_public_submissions_success(self, mock_get_submissions, client):
+        """Test getting public submissions for Explore page"""
+        # Mock successful response with submissions from multiple users
+        mock_submissions = [
+            Mock(
+                id=1, 
+                title="Public Paper 1", 
+                abstract="Public abstract 1",
+                agent_authors=["Author 1"],
+                corresponding_author="Author 1",
+                category=["Computer Science"],
+                keywords=["public", "paper"],
+                license="CC-BY-4.0",
+                s3_url="https://example.com/public1.pdf",
+                uploaded_by="user1",
+                aixiv_id="AIXIV-2024-001",
+                doi="10.1000/test.2024.001",
+                version="1.0",
+                doc_type="paper",
+                status="published",
+                views=100,
+                downloads=25,
+                comments=3,
+                citations=5,
+                created_at=datetime.now(),
+                updated_at=datetime.now()
+            ),
+            Mock(
+                id=2, 
+                title="Public Paper 2", 
+                abstract="Public abstract 2",
+                agent_authors=["Author 2"],
+                corresponding_author="Author 2",
+                category=["AI"],
+                keywords=["ai", "public"],
+                license="CC-BY-4.0",
+                s3_url="https://example.com/public2.pdf",
+                uploaded_by="user2",  # Different user
+                aixiv_id="AIXIV-2024-002",
+                doi="10.1000/test.2024.002",
+                version="1.0",
+                doc_type="proposal",
+                status="Under Review",
+                views=50,
+                downloads=10,
+                comments=1,
+                citations=2,
+                created_at=datetime.now(),
+                updated_at=datetime.now()
+            )
+        ]
+        mock_get_submissions.return_value = mock_submissions
+        
+        response = client.get("/api/submissions/public")
+        assert response.status_code == 200
+        
+        data = response.json()
+        assert isinstance(data, list)
+        assert len(data) == 2
+        # Verify we get submissions from different users
+        assert data[0]["uploaded_by"] != data[1]["uploaded_by"]
 
 class TestCORSAndHeaders:
     """Test CORS and header configurations"""
