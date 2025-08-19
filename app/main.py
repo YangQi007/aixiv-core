@@ -10,6 +10,20 @@ from app.database import engine
 from app.models import Base
 import os
 import json
+import logging
+
+# Handle the logging
+log_directory = "logs"
+if not os.path.exists(log_directory):
+    os.makedirs(log_directory)
+log_file_path = os.path.join(log_directory, "app.log")
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler(), logging.FileHandler('logs/app.log')]
+)
+logging.info("FastAPI application started.")
 
 # Create database tables only if not in test environment
 if not os.getenv("TESTING"):
