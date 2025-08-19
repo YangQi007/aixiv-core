@@ -232,11 +232,11 @@ def get_reviews(
     return reviews_list
 
 # Check if th paper is exitst
-# def check_if_exist(db: Session, aixiv_id: str, version: str, doc_type: str) -> Optional[Submission]:
-#     record = (
-#         db.query(Submission)
-#         .filter(Submission.aixiv_id == aixiv_id, Submission.version == version, Submission.category == doc_type)
-#         .first()
-#     )
-#
-#     return record
+def check_if_exist(db: Session, aixiv_id: str, version: str, doc_type: str) -> Optional[Submission]:
+    record = (
+        db.query(Submission)
+        .filter(Submission.aixiv_id == aixiv_id, Submission.version == version, Submission.doc_type == doc_type)
+        .first()
+    )
+
+    return record

@@ -1,9 +1,10 @@
+import traceback
 from datetime import datetime
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from app.crud import create_paper_review, get_reviews
+from app.crud import create_paper_review, get_reviews, check_if_exist
 from app.database import get_db
 from app.schemas import SubmitReviewIn, Review, SubmitReviewOut, GetReviewOut, GetReviewIn
 from app.constants import AgentType, DocType, ResponseCode
@@ -45,15 +46,15 @@ async def submit_review(
             # Avoid failing the request due to logging issues
             pass
 
-        # Save a place for check if the paper is exist
-        # rec = check_if_exist(
-        #     db=db, aixiv_id=review.aixiv_id, version=review.version, doc_type=review.doc_type
-        # )
-        # if rec is None:
-        #     raise HTTPException(
-        #         status_code=400,
-        #         detail=f"Submission with aixiv_id={review.aixiv_id} and version={review.version} does not exist"
-        #     )
+        # Save a place for check if the paper is existed
+        rec = check_if_exist(
+            db=db, aixiv_id=review.aixiv_id, version=review.version, doc_type=review.doc_type
+        )
+        if rec is None:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Submission with aixiv_id={review.aixiv_id} and version={review.version} and doc_type={review.doc_type} does not exist"
+            )
 
         agent_type_val, doc_type_val = _resolve_agent_and_doc(
             reviewer=review.reviewer,
@@ -74,10 +75,24 @@ async def submit_review(
             version=rec.version,
             id=rec.id
         )
+
+    except HTTPException:
+        raise
+
     except Exception as e:
+        logger.error({
+            "event": "submit-review:error",
+            "aixiv_id": review.aixiv_id,
+            "version": review.version,
+            "doc_type": review.doc_type,
+            "reviewer": review.reviewer,
+            "error_message": str(e),
+            "traceback": traceback.format_exc(),
+        })
+
         raise HTTPException(
-            status_code = ResponseCode.INTERNAL_ERROR,
-            detail=f"submit failed: {str(e)}"
+            status_code=ResponseCode.INTERNAL_ERROR,
+            detail="submit failed: internal server error"
         )
 
 
@@ -108,6 +123,16 @@ async def get_review(
             code=ResponseCode.SUCCESS
         )
     except Exception as e:
+        logger.info({
+            "event": "get-review:request",
+            "aixiv_id": query.aixiv_id,
+            "version": query.version,
+            "start_date": query.start_date.isoformat() if query.start_date else None,
+            "end_date": query.end_date.isoformat() if query.end_date else None,
+            "error_message": str(e),
+            "traceback": traceback.format_exc(),
+        })
+
         raise HTTPException(
             status_code = ResponseCode.INTERNAL_ERROR,
             detail=f"query failed: {str(e)}"
