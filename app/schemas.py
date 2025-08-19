@@ -156,6 +156,12 @@ class SubmitReviewIn(BaseModel):
 
         return v
 
+    @field_validator("version")
+    def validate_version(cls, v: str):
+        pattern = r"^(0|[1-9]\d*)\.(0|[1-9]\d*)(\.(0|[1-9]\d*))?$"
+        if not re.match(pattern, v):
+            raise ValueError("version must be in the format 'X.Y' or 'X.Y.Z', e.g. 1.0, 2.1, 1.9.3")
+        return v
 
 class SubmitReviewOut(BaseModel):
     code: int
@@ -184,6 +190,12 @@ class GetReviewIn(BaseModel):
             return v.lower()
         return v
 
+    @field_validator("version")
+    def validate_version(cls, v: str):
+        pattern = r"^(0|[1-9]\d*)\.(0|[1-9]\d*)(\.(0|[1-9]\d*))?$"
+        if not re.match(pattern, v):
+            raise ValueError("version must be in the format 'X.Y' or 'X.Y.Z', e.g. 1.0, 2.1, 1.9.3")
+        return v
 
 class GetReviewOut(BaseModel):
     review_list: List[Review]
