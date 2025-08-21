@@ -47,14 +47,15 @@ async def submit_review(
             # Avoid failing the request due to logging issues
             pass
 
-        rec = check_if_exist(
-            db=db, aixiv_id=review.aixiv_id, version=review.version, doc_type=review.doc_type
-        )
-        if rec is None:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Review submission with aixiv_id={review.aixiv_id} and version={review.version} and doc_type={review.doc_type} does not exist"
+        if settings.paper_exist_check:
+            rec = check_if_exist(
+                db=db, aixiv_id=review.aixiv_id, version=review.version, doc_type=review.doc_type
             )
+            if rec is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Review submission with aixiv_id={review.aixiv_id} and version={review.version} and doc_type={review.doc_type} does not exist"
+                )
 
         agent_type_val, doc_type_val = _resolve_agent_and_doc(
             reviewer=review.reviewer,
@@ -62,7 +63,7 @@ async def submit_review(
             token=review.token,
         )
 
-        if settings.ip_limit_window_size>0:
+        if settings.ip_limit_window_size > 0:
                 start_time = datetime.now(timezone.utc) - timedelta(hours=settings.ip_limit_window_size)
                 rec = get_reviews(db, review.aixiv_id, start_time, datetime.now(timezone.utc), review.version, client_ip, doc_type_val)
                 if len(rec) > settings.ip_limit_frequency:
