@@ -84,10 +84,10 @@ class ProfileUpdateRequest(BaseModel):
     location: Optional[str] = None
     bio: Optional[str] = None
     email: Optional[EmailStr] = None
-    website: Optional[HttpUrl] = None
-    github: Optional[HttpUrl] = None
-    twitter: Optional[HttpUrl] = None
-    linkedin: Optional[HttpUrl] = None
+    website: Optional[str] = None
+    github: Optional[str] = None
+    twitter: Optional[str] = None
+    linkedin: Optional[str] = None
     avatar_url: Optional[str] = None
 
 

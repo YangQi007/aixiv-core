@@ -36,16 +36,45 @@ async def update_profile(
     # Convert URLs to database fields
     profile_dict = profile_data.model_dump()
     
-    # Handle the URL field conversions
-    if 'github' in profile_dict:
-        profile_dict['github_url'] = str(profile_dict.pop('github')) if profile_dict['github'] else None
-    if 'twitter' in profile_dict:
-        profile_dict['twitter_url'] = str(profile_dict.pop('twitter')) if profile_dict['twitter'] else None
-    if 'linkedin' in profile_dict:
-        profile_dict['linkedin_url'] = str(profile_dict.pop('linkedin')) if profile_dict['linkedin'] else None
+    # Helper function to normalize URLs
+    def normalize_url(url: Optional[str], base_url: str = None) -> Optional[str]:
+        if not url:
+            return None
+        url = url.strip()
+        if not url:
+            return None
+        # If it's already a full URL, return it
+        if url.startswith(('http://', 'https://')):
+            return url
+        # If base_url provided and url is just username/path, prepend base
+        if base_url and not url.startswith('/'):
+            # Handle username-only inputs
+            if '/' not in url and '.' not in url:
+                return f"{base_url}/{url}"
+            # Handle partial paths
+            elif not url.startswith('http'):
+                return f"{base_url}/{url}"
+        # Default to https:// if it looks like a domain
+        if '.' in url:
+            return f"https://{url}"
+        return url
     
-    # Ensure these fields are strings or None
-    profile_dict['website'] = str(profile_dict['website']) if profile_dict.get('website') else None
+    # Handle the URL field conversions with smart normalization
+    if 'github' in profile_dict:
+        github_url = normalize_url(profile_dict.pop('github'), 'https://github.com')
+        profile_dict['github_url'] = github_url
+    if 'twitter' in profile_dict:
+        twitter_url = normalize_url(profile_dict.pop('twitter'), 'https://twitter.com')
+        profile_dict['twitter_url'] = twitter_url
+    if 'linkedin' in profile_dict:
+        linkedin_url = normalize_url(profile_dict.pop('linkedin'), 'https://linkedin.com/in')
+        profile_dict['linkedin_url'] = linkedin_url
+    
+    # Handle website URL (require more complete URL)
+    if 'website' in profile_dict:
+        profile_dict['website'] = normalize_url(profile_dict['website'])
+    
+    # Email doesn't need URL processing
     profile_dict['email'] = str(profile_dict['email']) if profile_dict.get('email') else None
     
     # Create or update profile
