@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     secret_key: str = os.getenv("SECRET_KEY", "your-secret-key-here")
     debug: bool = os.getenv("DEBUG", "True").lower() == "true"
     auth_token: str = os.getenv("AUTH_TOKEN", "your-auth-token-here")
+    paper_exist_check: bool = os.getenv("PAPER_EXIST_CHECK", False)
+    ip_limit_window_size: int = os.getenv("IP_LIMIT_WINDOWSiZE", 0)
+    ip_limit_frequency: int = os.getenv("IP_LIMIT_FREQUENCY", 3)
+
     
     # CORS Configuration - handle both env var and default
     @property

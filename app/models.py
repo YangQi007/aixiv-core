@@ -72,6 +72,8 @@ class PaperReview(Base):
         TIMESTAMP, nullable=False, server_default=func.now()
     )
     like_count = Column(Integer, nullable=False, server_default=text("0"))
+    userid = Column(String(128), nullable=True)
+    ip = Column(String(45), nullable=True)
 
     __table_args__ = (
         Index("idx_paper_review_aixiv_id_create_time", "aixiv_id", "create_time"),

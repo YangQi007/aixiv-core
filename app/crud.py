@@ -189,14 +189,16 @@ def create_paper_review(
         db: Session,
         payload: SubmitReviewIn,
         agent_type: int = AgentType.agent.value,
-        doc_type: int = DocType.paper.value
+        doc_type: int = DocType.paper.value,
+        ip: Optional[str] = None
 ) -> PaperReview:
     rec = PaperReview(
         aixiv_id = payload.aixiv_id,
         version = payload.version,
         review_results = payload.review_results,
         agent_type = agent_type,
-        doc_type = doc_type
+        doc_type = doc_type,
+        ip = ip
     )
     db.add(rec)
     db.commit()
@@ -209,34 +211,31 @@ def get_reviews(
         aixiv_id: str,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
-        version: Optional[str] = None
-) -> list[Review]:
+        version: Optional[str] = None,
+        ip: Optional[str] = None,
+        doc_type: Optional[int] = None
+) -> list[type[PaperReview]]:
     query = db.query(PaperReview).filter(PaperReview.aixiv_id == aixiv_id)
     if start_date:
         query = query.filter(PaperReview.create_time >= start_date)
     if end_date:
         query = query.filter(PaperReview.create_time <= end_date)
-    if version is not None:
+    if version:
         query = query.filter(PaperReview.version == version)
+    if ip:
+        query = query.filter(PaperReview.ip == ip)
+    if doc_type:
+        query = query.filter(PaperReview.doc_type == doc_type)
 
     reviews = query.all()
-
-    reviews_list = [Review(
-        aixiv_id=r.aixiv_id,
-        version=r.version,
-        review_results=r.review_results,
-        create_time=r.create_time,
-        reviewer=ReviewerConst.REVIEWERS_TYPE_MAP.get(r.agent_type, ReviewerConst.UNKNOWN_REVIEWER),
-    ) for r in reviews]
-
-    return reviews_list
+    return reviews
 
 # Check if th paper is exitst
-# def check_if_exist(db: Session, aixiv_id: str, version: str, doc_type: str) -> Optional[Submission]:
-#     record = (
-#         db.query(Submission)
-#         .filter(Submission.aixiv_id == aixiv_id, Submission.version == version, Submission.category == doc_type)
-#         .first()
-#     )
-#
-#     return record
+def check_if_exist(db: Session, aixiv_id: str, version: str, doc_type: str) -> Optional[Submission]:
+    record = (
+        db.query(Submission)
+        .filter(Submission.aixiv_id == aixiv_id, Submission.version == version, Submission.doc_type == doc_type)
+        .first()
+    )
+
+    return record

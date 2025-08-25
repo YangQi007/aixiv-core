@@ -1,15 +1,17 @@
+import traceback
 from datetime import datetime
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from app.crud import create_paper_review, get_reviews
+from app.crud import create_paper_review, get_reviews, check_if_exist
 from app.database import get_db
 from app.schemas import SubmitReviewIn, Review, SubmitReviewOut, GetReviewOut, GetReviewIn
-from app.constants import AgentType, DocType, ResponseCode
+from app.constants import AgentType, DocType, ResponseCode, ReviewerConst
 from sqlalchemy.orm import Session
 from app.config import settings
 import logging
+from datetime import datetime, timedelta, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -45,15 +47,15 @@ async def submit_review(
             # Avoid failing the request due to logging issues
             pass
 
-        # Save a place for check if the paper is exist
-        # rec = check_if_exist(
-        #     db=db, aixiv_id=review.aixiv_id, version=review.version, doc_type=review.doc_type
-        # )
-        # if rec is None:
-        #     raise HTTPException(
-        #         status_code=400,
-        #         detail=f"Submission with aixiv_id={review.aixiv_id} and version={review.version} does not exist"
-        #     )
+        if settings.paper_exist_check:
+            rec = check_if_exist(
+                db=db, aixiv_id=review.aixiv_id, version=review.version, doc_type=review.doc_type
+            )
+            if rec is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Review submission with aixiv_id={review.aixiv_id} and version={review.version} and doc_type={review.doc_type} does not exist"
+                )
 
         agent_type_val, doc_type_val = _resolve_agent_and_doc(
             reviewer=review.reviewer,
@@ -61,11 +63,21 @@ async def submit_review(
             token=review.token,
         )
 
+        if settings.ip_limit_window_size > 0:
+                start_time = datetime.now(timezone.utc) - timedelta(hours=settings.ip_limit_window_size)
+                rec = get_reviews(db, review.aixiv_id, start_time, datetime.now(timezone.utc), review.version, client_ip, doc_type_val)
+                if len(rec) > settings.ip_limit_frequency:
+                    raise HTTPException(
+                        status_code=429,
+                        detail=f"Review submission with aixiv_id={review.aixiv_id} and version={review.version} and doc_type={review.doc_type} with ip={client_ip} has submitted too frequently, plz wait for {settings.ip_limit_window_size} hour to retry."
+                    )
+
         rec = create_paper_review(
             db=db,
             payload=review,
             agent_type=agent_type_val,
-            doc_type=doc_type_val
+            doc_type=doc_type_val,
+            ip=client_ip
         )
 
         return SubmitReviewOut(
@@ -74,10 +86,24 @@ async def submit_review(
             version=rec.version,
             id=rec.id
         )
+
+    except HTTPException:
+        raise
+
     except Exception as e:
+        logger.error({
+            "event": "submit-review:error",
+            "aixiv_id": review.aixiv_id,
+            "version": review.version,
+            "doc_type": review.doc_type,
+            "reviewer": review.reviewer,
+            "error_message": str(e),
+            "traceback": traceback.format_exc(),
+        })
+
         raise HTTPException(
-            status_code = ResponseCode.INTERNAL_ERROR,
-            detail=f"submit failed: {str(e)}"
+            status_code=ResponseCode.INTERNAL_ERROR,
+            detail="submit failed: internal server error"
         )
 
 
@@ -103,11 +129,30 @@ async def get_review(
             pass
 
         reviews = get_reviews(db, query.aixiv_id, query.start_date, query.end_date, query.version)
+
+        reviews_list = [Review(
+            aixiv_id=r.aixiv_id,
+            version=r.version,
+            review_results=r.review_results,
+            create_time=r.create_time,
+            reviewer=ReviewerConst.REVIEWERS_TYPE_MAP.get(r.agent_type, ReviewerConst.UNKNOWN_REVIEWER),
+        ) for r in reviews]
+
         return GetReviewOut(
-            review_list=reviews,
+            review_list=reviews_list,
             code=ResponseCode.SUCCESS
         )
     except Exception as e:
+        logger.info({
+            "event": "get-review:request",
+            "aixiv_id": query.aixiv_id,
+            "version": query.version,
+            "start_date": query.start_date.isoformat() if query.start_date else None,
+            "end_date": query.end_date.isoformat() if query.end_date else None,
+            "error_message": str(e),
+            "traceback": traceback.format_exc(),
+        })
+
         raise HTTPException(
             status_code = ResponseCode.INTERNAL_ERROR,
             detail=f"query failed: {str(e)}"
