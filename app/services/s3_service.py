@@ -24,7 +24,12 @@ class S3Service:
         content_types = {
             'pdf': 'application/pdf',
             'tex': 'application/x-tex',
-            'latex': 'application/x-tex'
+            'latex': 'application/x-tex',
+            'jpg': 'image/jpeg',
+            'jpeg': 'image/jpeg',
+            'png': 'image/png',
+            'gif': 'image/gif',
+            'webp': 'image/webp'
         }
         return content_types.get(file_extension, 'application/octet-stream')
     
@@ -99,6 +104,58 @@ class S3Service:
             if e.response['Error']['Code'] == '404':
                 return False
             raise Exception(f"Error checking file existence: {str(e)}")
+    
+    def upload_avatar(self, file_content: bytes, filename: str, user_id: str) -> str:
+        """
+        Upload avatar image directly to S3
+        Returns the S3 URL of the uploaded avatar
+        """
+        file_extension = self._get_file_extension(filename)
+        
+        # Validate file extension for avatars
+        if file_extension not in ['jpg', 'jpeg', 'png', 'gif', 'webp']:
+            raise ValueError("Only image files (jpg, jpeg, png, gif, webp) are supported for avatars")
+        
+        try:
+            # Generate unique file key with user ID prefix for organization
+            file_uuid = str(uuid.uuid4())
+            file_key = f"avatars/{user_id}/{file_uuid}.{file_extension}"
+            
+            # Get appropriate content type
+            content_type = self._get_content_type(file_extension)
+            
+            # Upload directly to S3
+            self.s3_client.put_object(
+                Bucket=self.bucket_name,
+                Key=file_key,
+                Body=file_content,
+                ContentType=content_type,
+                # Set cache control for avatars
+                CacheControl='max-age=31536000'
+            )
+            
+            # Construct the final S3 URL
+            s3_url = f"https://{self.bucket_name}.s3.{settings.aws_region}.amazonaws.com/{file_key}"
+            
+            return s3_url
+            
+        except ClientError as e:
+            raise Exception(f"S3 error uploading avatar: {str(e)}")
+        except Exception as e:
+            raise Exception(f"Error uploading avatar: {str(e)}")
+    
+    def delete_avatar(self, avatar_url: str) -> bool:
+        """
+        Delete an avatar from S3 based on its URL
+        """
+        try:
+            # Extract file key from S3 URL
+            if f"{self.bucket_name}.s3" in avatar_url:
+                file_key = avatar_url.split(f"{self.bucket_name}.s3.{settings.aws_region}.amazonaws.com/")[-1]
+                return self.delete_file(file_key)
+            return False
+        except Exception as e:
+            raise Exception(f"Error deleting avatar: {str(e)}")
 
 # Create a singleton instance
 s3_service = S3Service() 

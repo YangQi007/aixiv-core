@@ -6,12 +6,16 @@ from PIL import Image
 import uuid
 import io
 import os
+import logging
 
 from app.database import get_db
 from app.models import UserProfile
 from app.schemas import ProfileUpdateRequest, ProfileResponse
 from app.crud import get_profile_by_user_id, create_or_update_profile
 from app.auth import get_current_user, get_optional_current_user
+from app.services.s3_service import s3_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -32,16 +36,45 @@ async def update_profile(
     # Convert URLs to database fields
     profile_dict = profile_data.model_dump()
     
-    # Handle the URL field conversions
-    if 'github' in profile_dict:
-        profile_dict['github_url'] = str(profile_dict.pop('github')) if profile_dict['github'] else None
-    if 'twitter' in profile_dict:
-        profile_dict['twitter_url'] = str(profile_dict.pop('twitter')) if profile_dict['twitter'] else None
-    if 'linkedin' in profile_dict:
-        profile_dict['linkedin_url'] = str(profile_dict.pop('linkedin')) if profile_dict['linkedin'] else None
+    # Helper function to normalize URLs
+    def normalize_url(url: Optional[str], base_url: str = None) -> Optional[str]:
+        if not url:
+            return None
+        url = url.strip()
+        if not url:
+            return None
+        # If it's already a full URL, return it
+        if url.startswith(('http://', 'https://')):
+            return url
+        # If base_url provided and url is just username/path, prepend base
+        if base_url and not url.startswith('/'):
+            # Handle username-only inputs
+            if '/' not in url and '.' not in url:
+                return f"{base_url}/{url}"
+            # Handle partial paths
+            elif not url.startswith('http'):
+                return f"{base_url}/{url}"
+        # Default to https:// if it looks like a domain
+        if '.' in url:
+            return f"https://{url}"
+        return url
     
-    # Ensure these fields are strings or None
-    profile_dict['website'] = str(profile_dict['website']) if profile_dict.get('website') else None
+    # Handle the URL field conversions with smart normalization
+    if 'github' in profile_dict:
+        github_url = normalize_url(profile_dict.pop('github'), 'https://github.com')
+        profile_dict['github_url'] = github_url
+    if 'twitter' in profile_dict:
+        twitter_url = normalize_url(profile_dict.pop('twitter'), 'https://twitter.com')
+        profile_dict['twitter_url'] = twitter_url
+    if 'linkedin' in profile_dict:
+        linkedin_url = normalize_url(profile_dict.pop('linkedin'), 'https://linkedin.com/in')
+        profile_dict['linkedin_url'] = linkedin_url
+    
+    # Handle website URL (require more complete URL)
+    if 'website' in profile_dict:
+        profile_dict['website'] = normalize_url(profile_dict['website'])
+    
+    # Email doesn't need URL processing
     profile_dict['email'] = str(profile_dict['email']) if profile_dict.get('email') else None
     
     # Create or update profile
@@ -108,51 +141,64 @@ async def upload_avatar(
         background.paste(image, mask=image.split()[-1])
         image = background
     
-    # Resize image
+    # Resize image to max 500x500 while maintaining aspect ratio
     image.thumbnail((500, 500), Image.Resampling.LANCZOS)
     
-    # Generate unique filename
-    file_extension = avatar.filename.split('.')[-1].lower()
-    if file_extension not in ['jpg', 'jpeg', 'png', 'gif']:
-        file_extension = 'jpg'
-    unique_filename = f"{user_id}_{uuid.uuid4()}.{file_extension}"
-    
-    # Create directory if it doesn't exist
-    upload_dir = "static/avatars"
-    os.makedirs(upload_dir, exist_ok=True)
-    upload_path = os.path.join(upload_dir, unique_filename)
-    
-    # Save image
+    # Prepare image for upload
     output = io.BytesIO()
+    file_extension = avatar.filename.split('.')[-1].lower()
+    if file_extension not in ['jpg', 'jpeg', 'png', 'gif', 'webp']:
+        file_extension = 'jpg'
     image_format = 'JPEG' if file_extension in ['jpg', 'jpeg'] else file_extension.upper()
-    image.save(output, format=image_format)
+    
+    # Save optimized image to bytes
+    if image_format == 'JPEG':
+        image.save(output, format=image_format, quality=85, optimize=True)
+    else:
+        image.save(output, format=image_format, optimize=True)
     output.seek(0)
     
-    with open(upload_path, "wb") as f:
-        f.write(output.read())
-    
-    avatar_url = f"/static/avatars/{unique_filename}"
-    
-    # Update database with new avatar_url
-    profile = get_profile_by_user_id(db, user_id)
-    if profile:
-        # Delete old avatar file if exists
-        if profile.avatar_url and profile.avatar_url.startswith("/static/avatars/"):
-            old_file_path = profile.avatar_url[1:]  # Remove leading slash
-            if os.path.exists(old_file_path):
-                os.remove(old_file_path)
+    try:
+        # Upload to S3
+        logger.info(f"Uploading avatar for user {user_id}, filename: {avatar.filename}")
+        avatar_url = s3_service.upload_avatar(
+            file_content=output.read(),
+            filename=avatar.filename,
+            user_id=user_id
+        )
+        logger.info(f"Avatar uploaded to S3: {avatar_url}")
         
-        # Update avatar URL
-        profile.avatar_url = avatar_url
-        db.commit()
-        db.refresh(profile)
-    else:
-        # Create new profile with avatar
-        profile_data = {
-            "user_id": user_id,
-            "name": user_id,  # Default name
-            "avatar_url": avatar_url
-        }
-        profile = create_or_update_profile(db, profile_data)
-    
-    return {"avatar_url": avatar_url, "message": "Avatar uploaded successfully"}
+        # Update database with new avatar_url
+        profile = get_profile_by_user_id(db, user_id)
+        if profile:
+            # Delete old avatar from S3 if it exists and is an S3 URL
+            if profile.avatar_url and "s3" in profile.avatar_url and "amazonaws.com" in profile.avatar_url:
+                try:
+                    s3_service.delete_avatar(profile.avatar_url)
+                except Exception as e:
+                    # Log error but continue - old avatar deletion shouldn't block new upload
+                    logger.warning(f"Error deleting old avatar: {e}")
+            
+            # Update avatar URL
+            profile.avatar_url = avatar_url
+            db.commit()
+            db.refresh(profile)
+            logger.info(f"Profile updated with new avatar URL: {avatar_url}")
+        else:
+            # Create new profile with avatar
+            profile_data = {
+                "user_id": user_id,
+                "name": user_id,  # Default name
+                "avatar_url": avatar_url
+            }
+            profile = create_or_update_profile(db, profile_data)
+            logger.info(f"New profile created with avatar URL: {avatar_url}")
+        
+        return {"avatar_url": avatar_url, "message": "Avatar uploaded successfully"}
+        
+    except Exception as e:
+        logger.error(f"Failed to upload avatar for user {user_id}: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to upload avatar: {str(e)}"
+        )
